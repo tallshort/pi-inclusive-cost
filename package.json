@@ -1,0 +1,42 @@
+{
+  "name": "pi-inclusive-cost",
+  "version": "0.1.0",
+  "description": "Pi extension that shows session cost including subagent sessions, not just the main thread",
+  "type": "module",
+  "license": "MIT",
+  "author": "Serhii Chernenko",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/serhii-chernenko/pi-inclusive-cost.git"
+  },
+  "homepage": "https://github.com/serhii-chernenko/pi-inclusive-cost#readme",
+  "bugs": {
+    "url": "https://github.com/serhii-chernenko/pi-inclusive-cost/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "cost",
+    "usage",
+    "subagents",
+    "statusline"
+  ],
+  "pi": {
+    "extensions": ["./inclusive-cost.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typescript": "^5.8.3",
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
