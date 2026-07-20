@@ -23,15 +23,14 @@
     "statusline"
   ],
   "pi": {
-    "extensions": ["./inclusive-cost.ts"]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "extensions": [
+      "./inclusive-cost.ts"
+    ]
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "typescript": "^5.8.3",
-    "@types/node": "^24.0.0"
+    "@earendil-works/pi-coding-agent": "^0.80.10",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
   },
   "scripts": {
     "check": "tsc --noEmit"
