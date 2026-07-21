@@ -25,6 +25,12 @@ It intentionally does not attempt token-based cost *estimation* — it only sums
 ## Install
 
 ```bash
+pi install npm:pi-inclusive-cost
+```
+
+or directly from source:
+
+```bash
 pi install git:github.com/serhii-chernenko/pi-inclusive-cost
 ```
 
@@ -33,6 +39,12 @@ Restart Pi, or run `/reload`.
 ## Commands
 
 - `/cost` — direct vs. inclusive cost breakdown for the current chat, plus subagent session count.
+
+## Known limitation: newer artifacts-only subagent storage isn't covered yet
+
+`pi-subagents` has changed how it persists at least one subagent mode (parallel/fork batches) between versions. Older versions always wrote a full session file for every subagent invocation, nested or as a flat sibling — the two mechanisms above. A newer mode instead writes only to `<project-cwd>/.pi-subagents/artifacts/<runId>_<agent>_<index>_meta.json` (plus a `_transcript.jsonl` with a different record schema), with **no corresponding session file anywhere** — nested or sibling. That cost is currently invisible to this extension.
+
+This wasn't skipped by accident: there's no reliable way to attribute a given artifacts file back to one specific chat. The only correlation lead found (a `session_info` entry naming the subagent, written into the parent's own session file) turns out to depend on the `pi-intercom` package being installed — not a safe thing to build a core feature on. A worktree-wide sum without that correlation would also reintroduce exactly the cross-chat over-counting problem this extension was built to avoid in the first place (multiple unrelated chats in the same project folder getting lumped together). Until there's a first-party, version-stable way to scope this correctly, it's left uncovered rather than shipped fragile or wrong.
 
 ## Don't expect this to match your provider's billing dashboard exactly
 
