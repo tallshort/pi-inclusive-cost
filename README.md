@@ -17,6 +17,7 @@ Either kind can itself parent the other kind, so discovery keeps expanding from 
 
 - Sums `usage.cost.total` across the root session and every descendant found this way.
 - Adds an `incl $X.XX` segment to the statusline (via `ctx.ui.setStatus`) whenever descendant sessions exist — additive, next to the built-in direct-cost number, not a replacement.
+- Refreshes on session start, at the end of every turn, and when the agent run ends — the same cadence the built-in cost figure updates at, not just once the whole task finishes.
 - Adds a `/cost` command for an on-demand breakdown: direct cost, inclusive cost, and the number of subagent sessions folded in.
 
 It intentionally does not attempt token-based cost *estimation* — it only sums `usage.cost.total` as already recorded in the session file. That field is itself a **client-side estimate** computed by the agent's model registry (input/output/cache token counts × that model's listed per-token price), not a number returned by your provider's billing API — so treat it as an estimate, not an authoritative bill. If your provider doesn't populate `usage.cost.total` at all, the inclusive total will read as `$0.00`.

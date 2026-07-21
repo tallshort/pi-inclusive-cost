@@ -7,6 +7,7 @@ const STATUS_KEY = "inclusiveCost";
 
 export default function inclusiveCost(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => updateStatus(ctx));
+	pi.on("turn_end", (_event, ctx) => updateStatus(ctx));
 	pi.on("agent_end", (_event, ctx) => updateStatus(ctx));
 	pi.on("session_shutdown", (_event, ctx) => ctx.ui.setStatus(STATUS_KEY, undefined));
 
