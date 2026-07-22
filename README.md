@@ -68,7 +68,7 @@ git tag v0.1.3
 git push origin main v0.1.3
 ```
 
-The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. After claiming the package name with an initial manual publish, configure npm's Trusted Publisher for GitHub repository `serhii-chernenko/pi-inclusive-cost` and workflow filename `publish.yml`. Subsequent matching version tags publish without a stored npm token.
+The tag workflow type-checks, publishes to npm, and creates a GitHub Release with generated notes. Publishing uses an npm automation token stored as the `NPM_TOKEN` repository secret (Settings → Secrets and variables → Actions), not npm Trusted Publishing.
 
 ## License
 
