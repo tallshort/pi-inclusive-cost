@@ -1,5 +1,10 @@
 # pi-inclusive-cost
 
+[![npm version](https://img.shields.io/npm/v/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
+[![npm downloads](https://img.shields.io/npm/dm/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
+[![CI](https://github.com/serhii-chernenko/pi-inclusive-cost/actions/workflows/ci.yml/badge.svg)](https://github.com/serhii-chernenko/pi-inclusive-cost/actions/workflows/ci.yml)
+[![GitHub stars](https://img.shields.io/github/stars/serhii-chernenko/pi-inclusive-cost?style=flat)](https://github.com/serhii-chernenko/pi-inclusive-cost/stargazers)
+
 A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
 
 <img width="1888" height="504" alt="shot-mrwgwdn7" src="https://github.com/user-attachments/assets/2e4f2de3-7447-4beb-993f-2222d8e08f3d" />
@@ -53,6 +58,17 @@ This wasn't skipped by accident: there's no reliable way to attribute a given ar
 `usage.cost.total` is computed locally from token counts and a local price table — it is not your provider's authoritative bill. Even with accurate, current pricing, a locally-summed total can diverge from what your provider's own usage dashboard reports, for reasons outside this extension's control: reporting lag on the provider's side, per-request billing multipliers instead of per-token metering, or negotiated/enterprise rates that differ from the public price list. If you need a number that reconciles with billing, treat this as a fast local signal, not a substitute for your provider's own dashboard.
 
 For a full project-wide audit across every chat (not just the current one), use a dedicated usage-dashboard tool — this extension is meant for a quick, live, per-chat signal in the statusline.
+
+## Releases
+
+Bump `version` in `package.json`, commit, then push a matching tag:
+
+```bash
+git tag v0.1.3
+git push origin main v0.1.3
+```
+
+The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. After claiming the package name with an initial manual publish, configure npm's Trusted Publisher for GitHub repository `serhii-chernenko/pi-inclusive-cost` and workflow filename `publish.yml`. Subsequent matching version tags publish without a stored npm token.
 
 ## License
 

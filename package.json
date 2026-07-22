@@ -27,6 +27,11 @@
       "./inclusive-cost.ts"
     ]
   },
+  "files": [
+    "inclusive-cost.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
@@ -40,5 +45,6 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "packageManager": "pnpm@11.5.2"
 }
