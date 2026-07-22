@@ -2,6 +2,8 @@
 
 A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
 
+<img width="1888" height="504" alt="shot-mrwgwdn7" src="https://github.com/user-attachments/assets/2e4f2de3-7447-4beb-993f-2222d8e08f3d" />
+
 ## The problem
 
 Pi's built-in statusline sums cost from the current session's own message history only. If you use a subagent extension (e.g. one that spawns background workers, reviewers, researchers, etc.), those subagent sessions are written to their own nested session files and are invisible to the built-in cost total — so the number in your statusline can understate what a task actually cost by a wide margin.
