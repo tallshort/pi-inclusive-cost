@@ -68,7 +68,7 @@ git tag v0.1.3
 git push origin main v0.1.3
 ```
 
-The tag workflow type-checks, publishes to npm, and creates a GitHub Release with generated notes. Publishing uses an npm automation token stored as the `NPM_TOKEN` repository secret (Settings → Secrets and variables → Actions), not npm Trusted Publishing.
+The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. No npm token is stored anywhere — the trust relationship is configured once on npm's side for GitHub repository `serhii-chernenko/pi-inclusive-cost` and workflow filename `publish.yml` (`npm trust github pi-inclusive-cost --repo serhii-chernenko/pi-inclusive-cost --file publish.yml --allow-publish`, npm CLI ≥11.15.0).
 
 ## License
 
