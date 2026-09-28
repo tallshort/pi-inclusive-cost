@@ -7,11 +7,11 @@
   "author": "Serhii Chernenko",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/serhii-chernenko/pi-inclusive-cost.git"
+    "url": "git+https://github.com/tallshort/pi-inclusive-cost.git"
   },
-  "homepage": "https://github.com/serhii-chernenko/pi-inclusive-cost#readme",
+  "homepage": "https://github.com/tallshort/pi-inclusive-cost#readme",
   "bugs": {
-    "url": "https://github.com/serhii-chernenko/pi-inclusive-cost/issues"
+    "url": "https://github.com/tallshort/pi-inclusive-cost/issues"
   },
   "keywords": [
     "pi-package",

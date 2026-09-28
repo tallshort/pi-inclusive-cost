@@ -2,8 +2,11 @@
 
 [![npm version](https://img.shields.io/npm/v/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
 [![npm downloads](https://img.shields.io/npm/dm/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
-[![CI](https://github.com/serhii-chernenko/pi-inclusive-cost/actions/workflows/ci.yml/badge.svg)](https://github.com/serhii-chernenko/pi-inclusive-cost/actions/workflows/ci.yml)
-[![GitHub stars](https://img.shields.io/github/stars/serhii-chernenko/pi-inclusive-cost?style=flat)](https://github.com/serhii-chernenko/pi-inclusive-cost/stargazers)
+[![CI](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml/badge.svg)](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml)
+[![GitHub stars](https://img.shields.io/github/stars/tallshort/pi-inclusive-cost?style=flat)](https://github.com/tallshort/pi-inclusive-cost/stargazers)
+
+> [!NOTE]
+> This repository is the `tallshort`-maintained fork of [serhii-chernenko/pi-inclusive-cost](https://github.com/serhii-chernenko/pi-inclusive-cost), which remains the upstream project.
 
 A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
 
@@ -52,7 +55,7 @@ pi install npm:pi-inclusive-cost
 or directly from source:
 
 ```bash
-pi install git:github.com/serhii-chernenko/pi-inclusive-cost
+pi install git:github.com/tallshort/pi-inclusive-cost
 ```
 
 Restart Pi, or run `/reload`.
@@ -96,7 +99,7 @@ git tag v0.1.3
 git push origin main v0.1.3
 ```
 
-The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. No npm token is stored anywhere — the trust relationship is configured once on npm's side for GitHub repository `serhii-chernenko/pi-inclusive-cost` and workflow filename `publish.yml` (`npm trust github pi-inclusive-cost --repo serhii-chernenko/pi-inclusive-cost --file publish.yml --allow-publish`, npm CLI ≥11.15.0).
+The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. No npm token is stored anywhere — the trust relationship is configured once on npm's side for GitHub repository `tallshort/pi-inclusive-cost` and workflow filename `publish.yml` (`npm trust github pi-inclusive-cost --repo tallshort/pi-inclusive-cost --file publish.yml --allow-publish`, npm CLI ≥11.15.0).
 
 ## License
 
