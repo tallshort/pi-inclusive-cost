@@ -28,6 +28,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `@pi-archimedes/subagent` | Attributed synchronous `details.results[].usage.cost` records |
 | `pi-subagents-lite` | Foreground `Agent` tool-result cost and attributed background completion messages |
 | `@ian-pascoe/pi-minimal-subagents` | Root Session registry `turn-settled` usage, keyed by stable agent and turn identity |
+| `pi-better-subagents` | Attributed launch run IDs and their retained sandboxed per-run standard child Session usage |
 | `@bacnh85/pi-subagent` | Attributed foreground tool-result usage and background completion messages |
 | `pi-subagents-j0k3r` | Attributed `subagent_*` tool-result task usage, with an explicitly referenced standard session as fallback |
 | `@ferris1225/pi-subagents` | Run IDs from attributed launch results and cumulative usage from persisted `subagent_status` results; explicit standard sessions are fallback only |
@@ -42,6 +43,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous results expose stable child Session IDs and usage without persisting child Session files |
 | `pi-subagents-lite` | `pi-subagents-lite` | Foreground calls persist cumulative cost; background completions are linked to attributed launch IDs |
 | `@ian-pascoe/pi-minimal-subagents` | `@ian-pascoe/pi-minimal-subagents` | Registry v1/v2 settled-turn usage is authoritative; child Session totals are not used as fallback |
+| `pi-better-subagents` | `pi-better-subagents` | Strictly attributed retained sandboxed child Sessions only; shared session trees and large `output.log` files are not scanned |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
 | `@nklisch/pi-subagents` | Standard Pi sessions | Maintained MIT fork of `@gotgenes/pi-subagents`; retains the same `tasks/*.jsonl` persistence while adding ordered lifecycle interception |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
@@ -82,12 +84,11 @@ Restart Pi, or run `/reload`.
 
 | Extension | Reason |
 | --- | --- |
-| `pi-better-subagents` | Stores standard sessions in a separate temporary tree without `parentSession`; a collector keyed by the returned `runId` is planned |
 | `@esso0428/pi-subagents` | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
-| `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |
+| `@narumitw/pi-subagents` | Starts children with `--no-session` and exposes neither stable `jobId + usage.cost` data nor attributable child Sessions; upstream support is required first |
 | `wj-pi-subagents` | Starts children with `--no-session`; child replies contain text but no usage/cost |
 
-Planned collector work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md). `@tintinweb/pi-subagents` is intentionally not planned for a package-specific collector: its optional `reportUsage` mode reports child cost through the parent Pi tool result, so collecting the same child usage again could double-count it.
+`@tintinweb/pi-subagents` is intentionally not given a package-specific collector: its optional `reportUsage` mode reports child cost through the parent Pi tool result, so collecting the same child usage again could double-count it.
 
 The unscoped `pi-subagents` name in the preserved upstream limitation below did not include a package identity or version range. Treat it as a description of the observed artifacts-only layout, not as a claim about every similarly named npm package or fork.
 

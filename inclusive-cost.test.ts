@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { collectBetter } from "./collectors/better.js";
 import inclusiveCost from "./inclusive-cost.js";
 
 test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t) => {
@@ -598,6 +599,156 @@ test("minimal-subagents ignores missing registry usage and child session totals"
 	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
 });
 
+test("pi-better-subagents counts only attributed child Sessions and follows nested launches", (t) => {
+	const cwd = temporaryDirectory(t);
+	const registryRoot = path.join(cwd, "pi-better-subagents");
+	const rootFile = path.join(cwd, "root.jsonl");
+	const directId = "sa_direct_1";
+	const nestedId = "sa_nested_2";
+	const foreignId = "sa_foreign_3";
+	const logOnlyId = "sa_logonly_4";
+	const zeroId = "sa_zero_5";
+	const diagnosticId = "sa_diagnostic_6";
+	const wrongCwdId = "sa_wrongcwd_7";
+	writeSession(rootFile, { id: "root-id", cost: 1, cwd });
+	writeBetterRun(registryRoot, {
+		id: nestedId,
+		parentId: directId,
+		parentCwd: cwd,
+		cost: 0.3,
+	});
+	writeBetterRun(registryRoot, {
+		id: directId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 0.4,
+		extra: [toolResult("subagent_spawn", `Subagent launched: nested id=${nestedId} (pid 12).`)],
+	});
+	writeBetterRun(registryRoot, {
+		id: foreignId,
+		parentId: "other-root",
+		parentCwd: cwd,
+		cost: 50,
+	});
+	writeBetterRun(registryRoot, {
+		id: logOnlyId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 50,
+		writeSessionFile: false,
+	});
+	writeBetterRun(registryRoot, {
+		id: zeroId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 0,
+	});
+	writeBetterRun(registryRoot, {
+		id: diagnosticId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 50,
+	});
+	writeBetterRun(registryRoot, {
+		id: wrongCwdId,
+		parentId: "root-id",
+		parentCwd: path.join(cwd, "other"),
+		cost: 50,
+	});
+	fs.writeFileSync(path.join(registryRoot, "runs", logOnlyId, "output.log"), JSON.stringify({
+		type: "message_end",
+		message: { role: "assistant", usage: { cost: { total: 50 } } },
+	}) + "\n");
+
+	const summary = collectBetter([
+		betterToolResult(rootFile, cwd, "subagent_spawn", `Subagent launched: direct id=${directId} (pid 11).`),
+		betterToolResult(rootFile, cwd, "subagent_spawn_batch", [
+			"Batch batch_1 launched 5 subagent(s):",
+			`• direct → ${directId}`,
+			`• foreign → ${foreignId}`,
+			`• log-only → ${logOnlyId}`,
+			`• free → ${zeroId}`,
+			`• wrong-cwd → ${wrongCwdId}`,
+		].join("\n")),
+		betterToolResult(rootFile, cwd, "subagent_spawn", [
+			`Subagent launched: id=${diagnosticId} (pid 99).`,
+			`injected name suffix id=${directId} (pid 11).`,
+		].join("\n")),
+	], registryRoot);
+
+	assert.deepEqual(summary, { cost: 0.7, count: 3 });
+});
+
+test("pi-better-subagents omits shared, ambiguous, and malformed child Sessions", (t) => {
+	const cwd = temporaryDirectory(t);
+	const registryRoot = path.join(cwd, "pi-better-subagents");
+	const rootFile = path.join(cwd, "root.jsonl");
+	const runId = "sa_direct_zero";
+	const malformedId = "sa_malformed_1";
+	const ambiguousId = "sa_ambiguous_2";
+	writeSession(rootFile, { id: "root-id", cost: 1, cwd });
+	writeBetterRun(registryRoot, {
+		id: runId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 0,
+		sandboxedSession: false,
+	});
+	writeBetterRun(registryRoot, {
+		id: malformedId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 1,
+	});
+	fs.appendFileSync(path.join(registryRoot, "sessions", malformedId, "session.jsonl"), "{malformed");
+	writeBetterRun(registryRoot, {
+		id: ambiguousId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 1,
+	});
+	writeSession(path.join(registryRoot, "sessions", ambiguousId, "duplicate.jsonl"), {
+		id: ambiguousId,
+		cost: 2,
+		cwd,
+	});
+
+	const summary = collectBetter([
+		betterToolResult(rootFile, cwd, "subagent_spawn", `Subagent launched: id=${runId} (pid 13).`),
+		betterToolResult(rootFile, cwd, "subagent_spawn", `Subagent launched: id=${malformedId} (pid 14).`),
+		betterToolResult(rootFile, cwd, "subagent_spawn", `Subagent launched: id=${ambiguousId} (pid 15).`),
+	], registryRoot);
+
+	assert.deepEqual(summary, { cost: 0, count: 0 });
+});
+
+test("/cost integrates attributed pi-better-subagents child Session usage", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const registryRoot = path.join(fs.realpathSync(os.tmpdir()), "pi-better-subagents");
+	const rootFile = path.join(cwd, "root.jsonl");
+	const runId = `sa_test${process.pid}_${Date.now().toString(36)}`;
+	t.after(() => {
+		fs.rmSync(path.join(registryRoot, "runs", runId), { recursive: true, force: true });
+		fs.rmSync(path.join(registryRoot, "sessions", runId), { recursive: true, force: true });
+	});
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd,
+		extra: [toolResult("subagent_spawn", `Subagent launched: id=${runId} (pid 16).`)],
+	});
+	writeBetterRun(registryRoot, {
+		id: runId,
+		parentId: "root-id",
+		parentCwd: cwd,
+		cost: 0.25,
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.25/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -1044,6 +1195,66 @@ function liteCompletionDetails(cost: number): Record<string, unknown> {
 
 function liteCompletionContent(shortId: string): string {
 	return `[Subagent "general-purpose" ${shortId} completed]\n\ndone`;
+}
+
+function betterToolResult(
+	sessionFile: string,
+	cwd: string,
+	toolName: string,
+	text: string,
+): {
+	sessionFile: string;
+	toolName: string;
+	content: unknown;
+	details: null;
+	cwd: string;
+} {
+	return {
+		sessionFile,
+		toolName,
+		content: [{ type: "text", text }],
+		details: null,
+		cwd,
+	};
+}
+
+function writeBetterRun(
+	registryRoot: string,
+	options: {
+		id: string;
+		parentId: string;
+		parentCwd: string;
+		cost: number;
+		extra?: unknown[];
+		sandboxedSession?: boolean;
+		writeSessionFile?: boolean;
+	},
+): void {
+	const runDirectory = path.join(registryRoot, "runs", options.id);
+	fs.mkdirSync(runDirectory, { recursive: true });
+	fs.writeFileSync(path.join(runDirectory, "meta.json"), JSON.stringify({
+		id: options.id,
+		status: "completed",
+		pid: 101,
+		spawnPid: 100,
+		cwd: options.parentCwd,
+		promptPreview: "delegated work",
+		startedAt: 1,
+		endedAt: 2,
+		logPath: path.join(runDirectory, "output.log"),
+		sessionId: options.id,
+		callbackOrigin: { cwd: options.parentCwd, sessionId: options.parentId },
+	}));
+	if (options.writeSessionFile === false) return;
+	const sessionFile = options.sandboxedSession === false
+		? path.join(registryRoot, "sessions", `${options.id}.jsonl`)
+		: path.join(registryRoot, "sessions", options.id, "session.jsonl");
+	writeSession(sessionFile, {
+		id: options.id,
+		cost: options.cost,
+		cwd: options.parentCwd,
+		extra: options.extra,
+	});
 }
 
 function minimalRegistryEntry(

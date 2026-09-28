@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 import { collectArchimedes } from "./collectors/archimedes.js";
 import { collectBacnh85 } from "./collectors/bacnh85.js";
+import { collectBetter } from "./collectors/better.js";
 import { collectFabric } from "./collectors/fabric.js";
 import { collectFerris } from "./collectors/ferris.js";
 import { collectJ0k3r } from "./collectors/j0k3r.js";
@@ -64,6 +65,7 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const sessions = collectPiSessions(rootFile);
 	const archimedes = collectArchimedes(sessions.toolResults);
 	const bacnh85 = collectBacnh85(sessions.toolResults, sessions.customMessages);
+	const better = collectBetter(sessions.toolResults);
 	const fabric = collectFabric(rootFile, sessions.toolResults);
 	const ferris = collectFerris(sessions.toolResults);
 	const j0k3r = collectJ0k3r(sessions.toolResults);
@@ -72,7 +74,7 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		inclusive: sessions.directCost + sessions.delegatedCost + archimedes.cost + bacnh85.cost + fabric.cost + ferris.cost + j0k3r.cost + lite.cost + minimal.cost + taskflow.cost,
-		foldedCount: sessions.delegatedCount + archimedes.count + bacnh85.count + fabric.count + ferris.count + j0k3r.count + lite.count + minimal.count + taskflow.count,
+		inclusive: sessions.directCost + sessions.delegatedCost + archimedes.cost + bacnh85.cost + better.cost + fabric.cost + ferris.cost + j0k3r.cost + lite.cost + minimal.cost + taskflow.cost,
+		foldedCount: sessions.delegatedCount + archimedes.count + bacnh85.count + better.count + fabric.count + ferris.count + j0k3r.count + lite.count + minimal.count + taskflow.count,
 	};
 }

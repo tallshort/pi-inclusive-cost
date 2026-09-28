@@ -26,6 +26,7 @@ archimedes-fallback:<parent-session-path>:<tool-call-id>:<result-index>
 lite-foreground:<parent-session-path>:<tool-call-id>
 lite-background:<parent-session-path>:<agent-id>
 minimal:<root-session-id>:<agent-id>:<turn-id>
+better:<run-id>
 bacnh85:<parent-session-path>:<tool-call-id>:<result-index>
 bacnh85-background:<parent-session-path>:<task-id>
 j0k3r:<parent-session-path>:<task-id>:<attempt>
@@ -46,6 +47,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `@pi-archimedes/subagent` | Synchronous result usage in parent `subagent` tool results | Child Session ID, or parent Session/tool-call/result identity |
 | `pi-subagents-lite` | Foreground `Agent` tool results and background completion custom messages | Parent Session/tool-call or attributed agent identity |
 | `@ian-pascoe/pi-minimal-subagents` | Root Session registry v1/v2 `turn-settled.result.usage.cost.total` | Root Session ID + agent ID + turn ID |
+| `pi-better-subagents` | Strictly attributed launch receipt plus retained sandboxed per-run standard child Session usage | Run ID |
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
 | `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
 | `@ferris1225/pi-subagents` | Attributed launch identities plus cumulative usage in persisted `subagent_status` results | Parent session path + run ID |
@@ -60,6 +62,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous parent tool results persist stable child Session IDs and usage |
 | `pi-subagents-lite` | `pi-subagents-lite` | Foreground calls persist cumulative cost; background completions are linked to attributed launch IDs |
 | `@ian-pascoe/pi-minimal-subagents` | `@ian-pascoe/pi-minimal-subagents` | Append-only root registry persists attributable terminal-turn usage |
+| `pi-better-subagents` | `pi-better-subagents` | Launch receipts and callback origin identify sandboxed per-run child Sessions; nested launch receipts are followed recursively |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
 | `@nklisch/pi-subagents` | Standard Pi sessions | Maintained MIT fork of `@gotgenes/pi-subagents`; preserves `tasks/*.jsonl` while adding ordered lifecycle interception |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
@@ -79,6 +82,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 - `collectors/archimedes.ts` owns Archimedes result attribution and deduplication.
 - `collectors/lite.ts` owns pi-subagents-lite foreground/background attribution and deduplication.
 - `collectors/minimal.ts` owns minimal-subagents registry attribution and turn deduplication.
+- `collectors/better.ts` owns pi-better-subagents launch attribution, child Session lookup, nested discovery, and streaming cost collection.
 - `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
 - `collectors/ferris.ts` owns Ferris launch/status attribution, deduplication, and explicit-session fallback.
@@ -137,6 +141,12 @@ Completion messages without a matching background launch are omitted, which also
 Version 0.9.0 persists append-only `minimal-subagents.registry` custom entries in the root Session. Registry versions 1 and 2 expose authoritative terminal model usage through `event: "turn-settled"` and `result.usage.cost.total`. Contributions use the owning root Session ID, `result.agent_id`, and `result.turn_id`; repeated observations retain the greatest cost, and a valid zero-cost turn remains countable.
 
 Checkpoint `latest_result`, delivery-ledger results, coordinator custom messages, foreign-root records, and non-terminal events are not additional paid calls and are ignored. A persisted child `session_file` can contain imported history, multiple turns, or fork-cloned history without a durable per-turn usage boundary. The collector therefore does not sum child Session files when registry usage is missing, because doing so could duplicate or misattribute cost.
+
+### `pi-better-subagents`
+
+Persisted `subagent_spawn` and `subagent_spawn_batch` results identify successful run IDs. A run is accepted only when its metadata confirms the parent Session ID and working directory. Its retained sandboxed per-run standard Pi child Session is streamed once for assistant `usage.cost.total`; nested launch receipts are followed recursively and every run contributes at most once.
+
+The collector does not scan the shared non-sandbox session tree or parse `output.log`: those sources may contain unrelated sessions or extremely large logs. If upstream cleanup has removed the attributed per-run child Session, that run is omitted rather than estimated.
 
 ### `@bacnh85/pi-subagent`
 
@@ -200,12 +210,11 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 
 | Extension | Status | Reason |
 | --- | --- | --- |
-| `pi-better-subagents` | Planned | Standard sessions live in a separate temporary tree without a parent header; spawn results expose a stable `runId` |
 | `@esso0428/pi-subagents` | Blocked | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
 | `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |
 
-Planned collectors must start from references persisted in the current parent chat and must not scan shared global or project directories. The implementation work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md).
+Any future collector must start from references persisted in the current parent chat and must not scan shared global or project directories. Unsupported prerequisites are recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md).
 
 ## Refresh and presentation
 
@@ -220,4 +229,5 @@ Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The st
 - Old Taskflow snapshots without traces cannot preserve every historical recompute attempt.
 - Parent tool-result usage without a stable child/run identity is ignored to avoid double-counting.
 - minimal-subagents turns without persisted registry usage are omitted; whole child Session totals are not a safe per-turn fallback.
+- pi-better-subagents runs are omitted when their sandboxed per-run child Session is unavailable; shared session trees and large `output.log` files are intentionally not scanned.
 - Ferris detached completion text is not parsed; a run needs a persisted structured status/completed result to be collectible.

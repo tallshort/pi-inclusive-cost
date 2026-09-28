@@ -23,13 +23,6 @@ These collectors are needed because the audited package versions expose attribut
   - Never aggregate the project-wide `ferris-pi-subagents` session or results directories.
   - Add regression coverage for repeated status results, cross-session run IDs, unrelated package shapes, parent-reported usage, unrelated project sessions, and session fallback.
 
-- [ ] Add a `pi-better-subagents` collector.
-  - Discover only runs whose stable `runId` was returned by a `subagent_spawn` result persisted in the current parent chat.
-  - Resolve the referenced registry/session location and sum the run's standard Pi assistant `usage.cost.total`; do not scan `/tmp/pi-better-subagents/sessions` indiscriminately.
-  - Treat text-only `subagent_result(include: ["cost"])` output as non-authoritative unless a stable structured format is documented.
-  - Deduplicate spawn, result, and repeated status/query records by `runId`.
-  - Add regression coverage for unrelated temporary sessions, repeated queries, missing sessions, and completed runs.
-
 - [x] Add an `@bacnh85/pi-subagent` tool-result collector.
   - Use the parent `toolCallId` retained by the shared attributed-tool-result infrastructure for foreground identity.
   - Read foreground costs from `details.results[].usage.cost`, keyed by parent `toolCallId` plus result index.
@@ -59,10 +52,9 @@ These collectors are needed because the audited package versions expose attribut
   - Do not search for child Session JSONL because the default runner uses `SessionManager.inMemory()`.
   - Add regression coverage for foreground completion, background completion, repeated cumulative records, launch-only records, missing cost, and unrelated custom messages.
 
-## Suggested implementation order
-
-1. `pi-better-subagents`.
-
-## Upstream prerequisite
-
-`@narumitw/pi-subagents@3.1.0` is not currently collectible: it starts children with `--no-session` and does not persist or return usage/cost. Supporting it requires the extension to expose stable `jobId + usage.cost` data or attributable standard child sessions first; no `pi-inclusive-cost` implementation is planned until that prerequisite exists.
+- [x] Add a `pi-better-subagents` retained-child-session collector.
+  - Discover only successful run IDs persisted by attributed `subagent_spawn` and `subagent_spawn_batch` results.
+  - Require matching run metadata for the exact parent Session ID and working directory, then locate a unique standard child Session under the run's sandboxed per-run directory.
+  - Stream assistant `usage.cost.total`, key contributions by run ID, preserve valid zero-cost runs, and recursively follow attributed nested launch receipts.
+  - Ignore foreign metadata, ambiguous or missing child Sessions, shared non-sandbox session trees, and log-only runs; never scan or parse large `output.log` files.
+  - Add regression coverage for single/batch launch results, duplicates, nested launches, foreign runs, zero cost, and cleaned/missing Sessions.
