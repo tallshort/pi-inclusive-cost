@@ -146,7 +146,7 @@ Planned collectors must start from references persisted in the current parent ch
 
 ## Refresh and presentation
 
-Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The statusline shows the inclusive total only when at least one attributed delegated contribution exists. `/cost` reports direct Pi-session cost and collector-specific delegated totals.
+Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The statusline shows the inclusive total only when at least one attributed delegated contribution exists. `/cost` preserves the original three-line presentation—direct cost, inclusive cost, and folded delegated count—while collector-specific accounting remains internal.
 
 ## Known limitations
 

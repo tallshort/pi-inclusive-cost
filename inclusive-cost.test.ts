@@ -16,10 +16,8 @@ test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t)
 	const notification = await invokeCost(rootFile);
 	assert.equal(notification, [
 		"Direct (this thread): $1.25",
-		"Pi subagent sessions (1): $0.75",
-		"Fabric runs (0): $0.00",
-		"Taskflow runs (0): $0.00",
-		"Inclusive total: $2.00",
+		"Inclusive (+ subagents): $2.00",
+		"Subagent sessions folded in: 1",
 	].join("\n"));
 });
 
@@ -38,8 +36,8 @@ test("session discovery follows nested and flat parent links to a fixed point", 
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Pi subagent sessions \(2\): \$0\.75/);
-	assert.match(notification, /Inclusive total: \$1\.75/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.75/);
+	assert.match(notification, /Subagent sessions folded in: 2/);
 });
 
 test("nested session.jsonl files must have a Pi session header", async (t) => {
@@ -54,8 +52,8 @@ test("nested session.jsonl files must have a Pi session header", async (t) => {
 	})}\n`);
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Pi subagent sessions \(0\): \$0\.00/);
-	assert.match(notification, /Inclusive total: \$1\.00/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
+	assert.match(notification, /Subagent sessions folded in: 0/);
 });
 
 test("inclusive status sorts first and renders dim with a trailing separator", (t) => {
@@ -123,8 +121,8 @@ test("Fabric run results are attributed by run ID and repeated cumulative result
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Fabric runs \(3\): \$1\.00/);
-	assert.match(notification, /Inclusive total: \$2\.00/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
+	assert.match(notification, /Subagent sessions folded in: 3/);
 });
 
 test("Fabric agent audit details contribute costs when the rendered output omits run IDs", async (t) => {
@@ -154,8 +152,8 @@ test("Fabric agent audit details contribute costs when the rendered output omits
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Fabric runs \(2\): \$0\.16/);
-	assert.match(notification, /Inclusive total: \$1\.16/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.16/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
 });
 
 test("Fabric session export is only a fallback for a run ID returned to this chat", async (t) => {
@@ -183,8 +181,8 @@ test("Fabric session export is only a fallback for a run ID returned to this cha
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Fabric runs \(1\): \$0\.60/);
-	assert.match(notification, /Inclusive total: \$1\.60/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
+	assert.match(notification, /Subagent sessions folded in: 1/);
 });
 
 test("Taskflow trace counts attempts and recomputes once while repeated run results are deduplicated", async (t) => {
@@ -220,8 +218,8 @@ test("Taskflow trace counts attempts and recomputes once while repeated run resu
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Taskflow runs \(2\): \$1\.00/);
-	assert.match(notification, /Inclusive total: \$2\.00/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
+	assert.match(notification, /Subagent sessions folded in: 2/);
 });
 
 test("Taskflow snapshot fallback excludes inherited and cached phases", async (t) => {
@@ -246,8 +244,8 @@ test("Taskflow snapshot fallback excludes inherited and cached phases", async (t
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Taskflow runs \(1\): \$0\.25/);
-	assert.match(notification, /Inclusive total: \$1\.25/);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.25/);
+	assert.match(notification, /Subagent sessions folded in: 1/);
 });
 
 function temporaryDirectory(t: { after: (callback: () => void) => void }): string {

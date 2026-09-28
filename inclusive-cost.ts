@@ -8,13 +8,8 @@ const STATUS_KEY = "00-inclusiveCost";
 
 interface CostTotals {
 	direct: number;
-	subagents: number;
-	fabric: number;
-	taskflow: number;
 	inclusive: number;
-	subagentCount: number;
-	fabricRunCount: number;
-	taskflowRunCount: number;
+	foldedCount: number;
 }
 
 export default function inclusiveCost(pi: ExtensionAPI): void {
@@ -33,10 +28,8 @@ export default function inclusiveCost(pi: ExtensionAPI): void {
 			}
 			const lines = [
 				`Direct (this thread): $${totals.direct.toFixed(2)}`,
-				`Pi subagent sessions (${totals.subagentCount}): $${totals.subagents.toFixed(2)}`,
-				`Fabric runs (${totals.fabricRunCount}): $${totals.fabric.toFixed(2)}`,
-				`Taskflow runs (${totals.taskflowRunCount}): $${totals.taskflow.toFixed(2)}`,
-				`Inclusive total: $${totals.inclusive.toFixed(2)}`,
+				`Inclusive (+ subagents): $${totals.inclusive.toFixed(2)}`,
+				`Subagent sessions folded in: ${totals.foldedCount}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
@@ -45,9 +38,7 @@ export default function inclusiveCost(pi: ExtensionAPI): void {
 
 function updateStatus(ctx: ExtensionContext): void {
 	const totals = computeTotals(ctx);
-	const delegatedCount = totals
-		? totals.subagentCount + totals.fabricRunCount + totals.taskflowRunCount
-		: 0;
+	const delegatedCount = totals?.foldedCount ?? 0;
 	if (!totals || delegatedCount === 0) {
 		ctx.ui.setStatus(STATUS_KEY, undefined);
 		return;
@@ -69,12 +60,7 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		subagents: sessions.delegatedCost,
-		fabric: fabric.cost,
-		taskflow: taskflow.cost,
 		inclusive: sessions.directCost + sessions.delegatedCost + fabric.cost + taskflow.cost,
-		subagentCount: sessions.delegatedCount,
-		fabricRunCount: fabric.count,
-		taskflowRunCount: taskflow.count,
+		foldedCount: sessions.delegatedCount + fabric.count + taskflow.count,
 	};
 }
