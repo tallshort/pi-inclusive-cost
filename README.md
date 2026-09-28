@@ -15,14 +15,27 @@ Pi's built-in statusline sums cost from the current session's own message histor
 
 ## What this does
 
-The extension rebuilds a deduplicated total from persisted records attributable to the current chat. It supports:
+The extension rebuilds a deduplicated total from persisted records attributable to the current chat.
 
-- standard nested and parent-linked Pi subagent sessions, including persisted native sessions from `@xzzpig/pi-subagents`;
-- `@gotgenes/pi-subagents` task sessions under the parent session's `tasks/` tree;
-- Pi Fabric runs whose run IDs are retained in rendered output or structured audit details;
-- Pi Taskflow runs whose run IDs are returned to the chat.
+### Collectors
 
-This extension adds explicit compatibility for `@gotgenes/pi-subagents`—an independently maintained hard fork of `@tintinweb/pi-subagents`—by collecting its `tasks/*.jsonl` sessions.
+| Collector | Attributed source |
+| --- | --- |
+| Standard Pi sessions | Root and linked child Session JSONL files containing `usage.cost.total` |
+| Pi Fabric | Run IDs and cumulative usage from `fabric_exec` rendered output or structured agent audit details, with attributable `.fabric` exports as fallback |
+| Pi Taskflow | Run IDs returned by `taskflow`, then usage-bearing trace events or an older snapshot fallback |
+
+### Supported extensions
+
+| Extension | Collector | Notes |
+| --- | --- | --- |
+| Legacy `pi-subagents` full-session modes | Standard Pi sessions | Uses nested `session.jsonl` or parent-linked sibling sessions |
+| `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
+| `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
+| Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
+| Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
+
+Support for a subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope.
 
 The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` shows separate direct, Pi subagent, Fabric, Taskflow, and inclusive totals. Refresh happens on session start, at the end of every turn, and when the agent run ends.
 
@@ -47,6 +60,18 @@ Restart Pi, or run `/reload`.
 ## Commands
 
 - `/cost` — direct, Pi subagent, Fabric, Taskflow, and inclusive totals for the current chat.
+
+## Not currently collected
+
+| Extension | Reason |
+| --- | --- |
+| `pi-subagents-j0k3r` | Stores standard sessions outside the parent tree without a `parentSession` header; a parent-tool-result collector is planned |
+| `@ferris1225/pi-subagents` | Stores sessions in a separate project directory; a collector based on its returned `runId`/session reference is planned |
+| `@esso0428/pi-subagents` | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
+| `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |
+| `wj-pi-subagents` | Starts children with `--no-session`; child replies contain text but no usage/cost |
+
+Planned collector work is recorded in the repository's `TODO.md`. `@tintinweb/pi-subagents` receives no package-specific collector here because its configurable reporting mechanism can attach child usage to the parent Session itself.
 
 ## Known limitation: newer artifacts-only subagent storage isn't covered yet
 

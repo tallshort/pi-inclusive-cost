@@ -28,9 +28,27 @@ taskflow-fallback:<execution-fingerprint>
 
 A key is inserted once into the aggregate map. Collector-specific rules decide which persisted records represent paid calls.
 
-## Supported systems
+## Collectors
 
-Dedicated package integration is limited to `@gotgenes/pi-subagents`. `@tintinweb/pi-subagents` is out of scope: this collector does not parse its private artifacts or reconstruct its parent-usage reporting.
+| Collector | Authoritative source | Contribution identity |
+| --- | --- | --- |
+| Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
+| Pi Fabric | Attributed run records returned by `fabric_exec` | `fabric:<run-id>` |
+| Pi Taskflow | Usage-bearing events in an attributed run trace | `taskflow:<run-id>:<trace-line>` |
+
+## Supported extensions
+
+| Extension | Collector | Relationship and mechanism |
+| --- | --- | --- |
+| Legacy `pi-subagents` full-session modes | Standard Pi sessions | Standard nested or parent-linked child sessions |
+| `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
+| `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
+| Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
+| Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
+
+`@tintinweb/pi-subagents` receives no package-specific collector: its configurable reporting can attach child usage to the parent Session. Supported subagent rows apply only when the described attributable persistence mode is enabled.
+
+## Collector details
 
 ### Standard Pi and legacy subagent sessions
 
@@ -98,6 +116,18 @@ The append-only trace is authoritative. Every `subagent-call` event contains the
 - recompute appends new `subagent-call` events to the same run trace, so its new attempts are counted.
 
 For an older run with no usable trace, the run snapshot is a fallback. The collector sums non-cache phase usage, excludes phase executions that predate a resumed child run, and fingerprints execution timestamps to avoid charging copied phase state twice. This fallback cannot reconstruct overwritten historical recompute usage and may under-count old runs.
+
+## Not currently collected
+
+| Extension | Status | Reason |
+| --- | --- | --- |
+| `pi-subagents-j0k3r` | Planned | Standard sessions live in a global directory without a child header link; parent tool results expose attributable task usage |
+| `@ferris1225/pi-subagents` | Planned | Standard sessions live in a separate project directory; parent results expose stable run and session references |
+| `@esso0428/pi-subagents` | Blocked | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
+| `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
+| `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |
+
+Planned collectors must start from references persisted in the current parent chat and must not scan shared global or project directories. The implementation work is recorded in the repository's `TODO.md`.
 
 ## Refresh and presentation
 
