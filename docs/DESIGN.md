@@ -23,6 +23,8 @@ Collectors produce keyed contributions:
 pi-session:<absolute-session-path>
 archimedes:<child-session-id>
 archimedes-fallback:<parent-session-path>:<tool-call-id>:<result-index>
+lite-foreground:<parent-session-path>:<tool-call-id>
+lite-background:<parent-session-path>:<agent-id>
 bacnh85:<parent-session-path>:<tool-call-id>:<result-index>
 bacnh85-background:<parent-session-path>:<task-id>
 j0k3r:<parent-session-path>:<task-id>:<attempt>
@@ -41,10 +43,11 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | --- | --- | --- |
 | Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
 | `@pi-archimedes/subagent` | Synchronous result usage in parent `subagent` tool results | Child Session ID, or parent Session/tool-call/result identity |
+| `pi-subagents-lite` | Foreground `Agent` tool results and background completion custom messages | Parent Session/tool-call or attributed agent identity |
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
 | `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
 | `@ferris1225/pi-subagents` | Attributed launch identities plus cumulative usage in persisted `subagent_status` results | Parent session path + run ID |
-| Pi Fabric | Attributed run records returned by `fabric_exec` | `fabric:<run-id>` |
+| Pi Fabric | Attributed run records in `fabric_exec` rendered output or successful `details.audits[].result` entries | `fabric:<run-id>` |
 | Pi Taskflow | Usage-bearing events in an attributed run trace | `taskflow:<run-id>:<trace-line>` |
 
 ## Supported extensions
@@ -53,13 +56,15 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | --- | --- | --- |
 | Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for standard nested or parent-linked child sessions, independent of package naming |
 | `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous parent tool results persist stable child Session IDs and usage |
+| `pi-subagents-lite` | `pi-subagents-lite` | Foreground calls persist cumulative cost; background completions are linked to attributed launch IDs |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
+| `@nklisch/pi-subagents` | Standard Pi sessions | Maintained MIT fork of `@gotgenes/pi-subagents`; preserves `tasks/*.jsonl` while adding ordered lifecycle interception |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
 | `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | Parent tool calls identify foreground results; completion messages identify background tasks |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results identify task attempts and their usage; explicit standard sessions are fallback only |
 | `@ferris1225/pi-subagents` | `@ferris1225/pi-subagents` | Launch results identify runs; persisted status results provide usage; explicit standard sessions are fallback only |
-| Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
+| Pi Fabric | Pi Fabric | Parent tool results identify runs through rendered output or structured audit details; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
 
 `@tintinweb/pi-subagents` receives no package-specific collector: its configurable reporting can attach child usage to the parent Session. Named subagent rows apply only when the described attributable persistence mode is enabled; the generic first row describes a file-layout contract rather than blanket support for packages named `pi-subagents`.
@@ -69,6 +74,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 - `inclusive-cost.ts` owns Pi event/command registration, invokes the collectors, combines their summaries, and renders the UI.
 - `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results and custom messages.
 - `collectors/archimedes.ts` owns Archimedes result attribution and deduplication.
+- `collectors/lite.ts` owns pi-subagents-lite foreground/background attribution and deduplication.
 - `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
 - `collectors/ferris.ts` owns Ferris launch/status attribution, deduplication, and explicit-session fallback.
@@ -108,11 +114,19 @@ The child header records the parent session ID. Directory containment supplies t
 
 The installed fork accumulates token usage for its own UI but does not currently copy a priced usage object into the parent tool result. The `tasks/*.jsonl` child session is therefore the dedicated compatibility source implemented by this extension.
 
+`@nklisch/pi-subagents` retains this persisted child layout and standard assistant usage. Its ordered `beforeStart`/`beforeComplete` interception may abort or add bounded continuation turns, but every model turn that actually runs remains recorded in the same child JSONL. The Standard Pi collector therefore covers its costs without a package-specific collector.
+
 ### `@pi-archimedes/subagent`
 
 Synchronous single and parallel calls persist `details.results[]` records with priced `usage.cost`. A valid Pi UUIDv7 in `childSessionId` is the preferred contribution identity. Missing or malformed IDs fall back to the parent Session path, `toolCallId`, and result index. Repeated records retain the greatest cost; zero-cost children remain valid contributions, while missing or parent-reported usage is omitted.
 
 Children run with `--no-session`, so no Session-file fallback exists. Transient `Events.COST_UPDATE` notifications are not persisted billing records and are ignored.
+
+### `pi-subagents-lite`
+
+Foreground `Agent` tool results persist cumulative `details.cost`; contributions are keyed by parent Session path and `toolCallId`. Background launch receipts persist a 17-character agent ID but no cost. A `subagent-result` custom message contributes only when its controlled header's eight-character ID prefix uniquely matches an attributed launch in the same parent Session. Repeated observations retain the greatest cumulative cost.
+
+Completion messages without a matching background launch are omitted, which also prevents foreground continuation notices from duplicating an earlier foreground contribution. Parent-reported usage takes precedence. Default children are in-memory, so the collector performs no child Session search.
 
 ### `@bacnh85/pi-subagent`
 
@@ -134,7 +148,7 @@ A compatible completed result may additionally supply explicit `sessionDir` and 
 
 ### Pi Fabric
 
-A persisted `fabric_exec` tool result can contain one or more Fabric run records. Fabric may render those records in `content`, or retain them only in successful `details.audits[]` entries for `agents.run`. Each record exposes a stable `id` and cumulative `usage.cost`; only the direct attributable audit result is parsed. The collector uses:
+A persisted `fabric_exec` tool result can contain one or more Fabric run records. Fabric may render those records in `content`, or keep them only in successful `details.audits[]` entries for `agents.run`. Each record exposes a stable `id` and cumulative `usage.cost`. The collector accepts only attributable `agents.run` audit results and uses:
 
 ```text
 fabric:<run-id>

@@ -52,6 +52,13 @@ These collectors are needed because the audited package versions expose attribut
   - Deduplicate registry updates and delivery records so cumulative/replayed state does not charge the same child turn twice.
   - Add regression coverage for multiple agents and turns, replayed registry entries, unrelated flat sessions, missing usage, and referenced-session fallback.
 
+- [x] Add a `pi-subagents-lite` parent-record collector.
+  - Read foreground cumulative cost from attributed `Agent` tool results that persist `details.cost`, keyed by parent Session and `toolCallId`/agent identity.
+  - Read background cumulative cost only from persisted `customType: "subagent-result"` completion messages, keyed by parent Session and agent/completion identity.
+  - Retain the greatest cumulative cost for repeated observations and ignore launch receipts, status reads, and in-memory-only `totalAgentCost` state.
+  - Do not search for child Session JSONL because the default runner uses `SessionManager.inMemory()`.
+  - Add regression coverage for foreground completion, background completion, repeated cumulative records, launch-only records, missing cost, and unrelated custom messages.
+
 ## Suggested implementation order
 
 1. `@ian-pascoe/pi-minimal-subagents`.

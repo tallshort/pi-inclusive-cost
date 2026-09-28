@@ -348,6 +348,76 @@ test("Archimedes fallback identities are parent-session scoped", async (t) => {
 	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
 });
 
+test("pi-subagents-lite foreground costs are keyed by parent tool call", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("Agent", "done", liteForegroundDetails(0.2), undefined, "lite-call-1"),
+			toolResult("Agent", "repeated", liteForegroundDetails(0.25), undefined, "lite-call-1"),
+			toolResult("Agent", "another", liteForegroundDetails(0.3, null), undefined, "lite-call-2"),
+			toolResult("Agent", "free", liteForegroundDetails(0), undefined, "lite-call-3"),
+			toolResult("Agent", "missing cost", liteForegroundDetails(), undefined, "lite-call-4"),
+			toolResult("Agent", "parent reported", liteForegroundDetails(0.5), 0.5, "lite-call-5"),
+			toolResult("AgentStatus", "ignore", liteForegroundDetails(50), undefined, "lite-status"),
+			customMessage("subagent-result", liteCompletionDetails(50), liteCompletionContent("deadbeef")),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [toolResult("Agent", "same call id in child session", liteForegroundDetails(0.4), undefined, "lite-call-1")],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 5/);
+});
+
+test("pi-subagents-lite background completions require an attributed launch", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	const agentId = "12345678-1234-4ab";
+	const launchOnlyId = "87654321-4321-4cd";
+	const reportedId = "aaaaaaaa-aaaa-4aa";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("Agent", "launched", liteBackgroundLaunchDetails(agentId), undefined, "lite-bg-1"),
+			customMessage("subagent-result", liteCompletionDetails(0.6), liteCompletionContent("12345678")),
+			customMessage("subagent-result", liteCompletionDetails(0.7), liteCompletionContent("12345678")),
+			toolResult("Agent", "launch only", liteBackgroundLaunchDetails(launchOnlyId), undefined, "lite-bg-2"),
+			toolResult("Agent", "reported launch", liteBackgroundLaunchDetails(reportedId), 0.5, "lite-bg-3"),
+			customMessage("subagent-result", liteCompletionDetails(0.5), liteCompletionContent("aaaaaaaa")),
+			toolResult("Agent", "ambiguous launch one", liteBackgroundLaunchDetails("deadbeef-1111-4aa"), undefined, "lite-bg-4"),
+			toolResult("Agent", "ambiguous launch two", liteBackgroundLaunchDetails("deadbeef-2222-4bb"), undefined, "lite-bg-5"),
+			customMessage("subagent-result", liteCompletionDetails(50), liteCompletionContent("deadbeef")),
+			customMessage("other-extension", liteCompletionDetails(50), liteCompletionContent("12345678")),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [
+			toolResult("Agent", "same agent id in child session", liteBackgroundLaunchDetails(agentId), undefined, "lite-bg-1"),
+			customMessage("subagent-result", liteCompletionDetails(0.2), liteCompletionContent("12345678")),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.90/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -758,12 +828,50 @@ function archimedesLikeOtherPackage(): Record<string, unknown> {
 	};
 }
 
+function liteForegroundDetails(cost?: number, contextPercent: number | null = 1): Record<string, unknown> {
+	return {
+		type: "general-purpose",
+		description: "Delegated work",
+		turnCount: 2,
+		toolUses: 1,
+		input: 10,
+		output: 5,
+		contextPercent,
+		durationMs: 25,
+		compactions: 0,
+		modelName: "model",
+		modelId: "model",
+		thinkingLevel: "medium",
+		...(cost === undefined ? {} : { cost }),
+	};
+}
 
-function customMessage(customType: string, details: unknown): unknown {
+function liteBackgroundLaunchDetails(agentId: string): Record<string, unknown> {
+	return {
+		type: "general-purpose",
+		description: "Delegated work",
+		agentId,
+		status: "running",
+	};
+}
+
+function liteCompletionDetails(cost: number): Record<string, unknown> {
+	return {
+		...liteForegroundDetails(cost),
+		status: "completed",
+	};
+}
+
+function liteCompletionContent(shortId: string): string {
+	return `[Subagent "general-purpose" ${shortId} completed]\n\ndone`;
+}
+
+
+function customMessage(customType: string, details: unknown, content = "completed"): unknown {
 	return {
 		type: "custom_message",
 		customType,
-		content: "completed",
+		content,
 		display: true,
 		details,
 	};
