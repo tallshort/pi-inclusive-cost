@@ -40,14 +40,14 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 
 | Extension | Collector | Relationship and mechanism |
 | --- | --- | --- |
-| Legacy `pi-subagents` full-session modes | Standard Pi sessions | Standard nested or parent-linked child sessions |
+| Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for standard nested or parent-linked child sessions, independent of package naming |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
 | Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
 
-`@tintinweb/pi-subagents` receives no package-specific collector: its configurable reporting can attach child usage to the parent Session. Supported subagent rows apply only when the described attributable persistence mode is enabled.
+`@tintinweb/pi-subagents` receives no package-specific collector: its configurable reporting can attach child usage to the parent Session. Named subagent rows apply only when the described attributable persistence mode is enabled; the generic first row describes a file-layout contract rather than blanket support for packages named `pi-subagents`.
 
 ## Module layout
 
@@ -142,7 +142,7 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
 | `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |
 
-Planned collectors must start from references persisted in the current parent chat and must not scan shared global or project directories. The implementation work is recorded in the repository's `TODO.md`.
+Planned collectors must start from references persisted in the current parent chat and must not scan shared global or project directories. The implementation work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md).
 
 ## Refresh and presentation
 

@@ -32,14 +32,14 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 
 | Extension | Collector | Notes |
 | --- | --- | --- |
-| Legacy `pi-subagents` full-session modes | Standard Pi sessions | Uses nested `session.jsonl` or parent-linked sibling sessions |
+| Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for nested `session.jsonl` or parent-linked sibling sessions; not a blanket claim about any package named `pi-subagents` |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Persisted RPC children use nested `subagents/.../session.jsonl` files under the parent session stem |
 | Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
 | Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
 
-Support for a subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope.
+Support for a named subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope. The generic first row is based only on the standard persisted layout.
 
 The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` keeps the original compact summary: direct cost, inclusive cost with every supported subagent backend folded in, and the number of folded delegated sessions/runs. Refresh happens on session start, at the end of every turn, and when the agent run ends.
 
@@ -77,7 +77,9 @@ Restart Pi, or run `/reload`.
 | `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |
 | `wj-pi-subagents` | Starts children with `--no-session`; child replies contain text but no usage/cost |
 
-Planned collector work is recorded in the repository's `TODO.md`. `@tintinweb/pi-subagents` receives no package-specific collector here because its configurable reporting mechanism can attach child usage to the parent Session itself.
+Planned collector work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md). `@tintinweb/pi-subagents` receives no package-specific collector here because its configurable reporting mechanism can attach child usage to the parent Session itself.
+
+The unscoped `pi-subagents` name in the preserved upstream limitation below did not include a package identity or version range. Treat it as a description of the observed artifacts-only layout, not as a claim about every similarly named npm package or fork.
 
 ## Known limitation: newer artifacts-only subagent storage isn't covered yet
 
