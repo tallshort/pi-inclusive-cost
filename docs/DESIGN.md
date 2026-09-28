@@ -48,6 +48,16 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 
 `@tintinweb/pi-subagents` receives no package-specific collector: its configurable reporting can attach child usage to the parent Session. Supported subagent rows apply only when the described attributable persistence mode is enabled.
 
+## Module layout
+
+- `inclusive-cost.ts` owns Pi event/command registration, invokes the collectors, combines their summaries, and renders the UI.
+- `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results.
+- `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
+- `collectors/taskflow.ts` owns Taskflow run lookup, trace accounting, and snapshot fallback.
+- `collectors/shared.ts` contains internal record and JSON-file helpers shared by the three collectors.
+
+Each collector exposes one summary-producing interface; external persistence details remain inside its module.
+
 ## Collector details
 
 ### Standard Pi and legacy subagent sessions
