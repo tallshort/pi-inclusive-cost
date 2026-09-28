@@ -214,7 +214,7 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
 | `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |
 
-Any future collector must start from references persisted in the current parent chat and must not scan shared global or project directories. Unsupported prerequisites are recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md).
+Any future collector must start from references persisted in the current parent chat and must not scan shared global or project directories. Unsupported extensions and their reasons are listed in the README.
 
 ## Refresh and presentation
 

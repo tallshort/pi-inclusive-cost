@@ -1,14 +1,23 @@
-# pi-inclusive-cost
+# @tallshort/pi-inclusive-cost
 
-[![npm version](https://img.shields.io/npm/v/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
-[![npm downloads](https://img.shields.io/npm/dm/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/pi-inclusive-cost)
+[![npm version](https://img.shields.io/npm/v/@tallshort/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/@tallshort/pi-inclusive-cost)
+[![npm downloads](https://img.shields.io/npm/dm/@tallshort/pi-inclusive-cost?logo=npm)](https://www.npmjs.com/package/@tallshort/pi-inclusive-cost)
 [![CI](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml/badge.svg)](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/tallshort/pi-inclusive-cost?style=flat)](https://github.com/tallshort/pi-inclusive-cost/stargazers)
+
+A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
 
 > [!NOTE]
 > This repository is the `tallshort`-maintained fork of [serhii-chernenko/pi-inclusive-cost](https://github.com/serhii-chernenko/pi-inclusive-cost), which remains the upstream project.
 
-A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
+## What this fork adds
+
+Compared with upstream, this fork adds:
+
+- Attributed cost collectors for Pi Fabric, Pi Taskflow, and a broad set of named subagent extensions.
+- Strict current-chat attribution with stable contribution identities, cumulative-cost deduplication, and no blanket scans of unrelated shared histories.
+- Lifecycle-aware accounting for persisted foreground, background, and nested work, plus backend-specific resume, cache, and recompute semantics.
+- A modular collector architecture with backend-specific source precedence, conservative fallbacks, and regression coverage.
 
 <img width="1888" height="504" alt="shot-mrwgwdn7" src="https://github.com/user-attachments/assets/2e4f2de3-7447-4beb-993f-2222d8e08f3d" />
 
@@ -65,7 +74,7 @@ It intentionally does not attempt token-based cost *estimation* — it only sums
 ## Install
 
 ```bash
-pi install npm:pi-inclusive-cost
+pi install npm:@tallshort/pi-inclusive-cost
 ```
 
 or directly from source:
@@ -108,14 +117,21 @@ For a full project-wide audit across every chat (not just the current one), use 
 
 ## Releases
 
-Bump `version` in `package.json`, commit, then push a matching tag:
+The first scoped release must create the public npm package before Trusted Publishing can be attached. From the clean release commit:
 
 ```bash
-git tag v0.1.3
-git push origin main v0.1.3
+npm login
+npm publish --access public
+npm trust github '@tallshort/pi-inclusive-cost' \
+  --repo tallshort/pi-inclusive-cost \
+  --file publish.yml \
+  --allow-publish \
+  --yes
+git tag v0.2.0
+git push origin main v0.2.0
 ```
 
-The tag workflow type-checks, publishes to npm through npm Trusted Publishing, and creates a GitHub Release with generated notes. No npm token is stored anywhere — the trust relationship is configured once on npm's side for GitHub repository `tallshort/pi-inclusive-cost` and workflow filename `publish.yml` (`npm trust github pi-inclusive-cost --repo tallshort/pi-inclusive-cost --file publish.yml --allow-publish`, npm CLI ≥11.15.0).
+For later releases, bump `version` in `package.json`, commit, then push the matching tag. The tag workflow type-checks, tests, publishes through npm Trusted Publishing, and creates a GitHub Release with generated notes. It skips npm publication when that exact package version already exists, so the first-release tag only creates the matching GitHub Release. No npm token is stored in the repository; `npm trust` requires npm CLI ≥11.15.0.
 
 ## License
 

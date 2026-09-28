@@ -1,6 +1,6 @@
 {
-  "name": "pi-inclusive-cost",
-  "version": "0.1.2",
+  "name": "@tallshort/pi-inclusive-cost",
+  "version": "0.2.0",
   "description": "Pi extension that shows session cost including subagent sessions, not just the main thread",
   "type": "module",
   "license": "MIT",
@@ -12,6 +12,9 @@
   "homepage": "https://github.com/tallshort/pi-inclusive-cost#readme",
   "bugs": {
     "url": "https://github.com/tallshort/pi-inclusive-cost/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "pi-package",
