@@ -42,6 +42,22 @@ test("session discovery follows nested and flat parent links to a fixed point", 
 	assert.match(notification, /Inclusive total: \$1\.75/);
 });
 
+test("nested session.jsonl files must have a Pi session header", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const unrelatedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, { id: "root-id", cost: 1, cwd: sessionDir });
+	fs.mkdirSync(path.dirname(unrelatedFile), { recursive: true });
+	fs.writeFileSync(unrelatedFile, `${JSON.stringify({
+		type: "message",
+		message: { role: "assistant", usage: { cost: { total: 99 } } },
+	})}\n`);
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Pi subagent sessions \(0\): \$0\.00/);
+	assert.match(notification, /Inclusive total: \$1\.00/);
+});
+
 test("inclusive status sorts first and renders dim with a trailing separator", (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");

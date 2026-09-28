@@ -27,6 +27,16 @@ interface FabricRunReference {
 	cost?: number;
 }
 
+interface FabricRunShape {
+	hasExplicitRunId: boolean;
+	hasUsage: boolean;
+	hasName: boolean;
+	hasStatus: boolean;
+	hasRunner: boolean;
+	hasTask: boolean;
+	hasCwd: boolean;
+}
+
 interface TaskflowRunReference {
 	cwd: string;
 }
@@ -236,14 +246,15 @@ function collectFabricObject(
 		: undefined;
 	const id = typeof object.id === "string" && FABRIC_RUN_ID.test(object.id) ? object.id : undefined;
 	const candidate = explicitRunId ?? id;
-	const isRunRecord = candidate !== undefined && (
-		(explicitRunId !== undefined && usage !== null)
-		|| (typeof object.name === "string"
-			&& typeof object.status === "string"
-			&& typeof object.runner === "string"
-			&& typeof object.task === "string"
-			&& typeof object.cwd === "string")
-	);
+	const isRunRecord = candidate !== undefined && isFabricRunRecord({
+		hasExplicitRunId: explicitRunId !== undefined,
+		hasUsage: usage !== null,
+		hasName: typeof object.name === "string",
+		hasStatus: typeof object.status === "string",
+		hasRunner: typeof object.runner === "string",
+		hasTask: typeof object.task === "string",
+		hasCwd: typeof object.cwd === "string",
+	});
 	if (!isRunRecord || candidate === undefined) return;
 	const cost = finiteNonNegative(usage?.cost);
 	mergeFabricRun(found, candidate, cost === undefined ? {} : { cost });
@@ -307,8 +318,15 @@ function collectFabricYaml(text: string, found: Map<string, FabricRunReference>)
 				if (costMatch) cost = finiteNonNegative(Number(costMatch[1]));
 			}
 		}
-		const isRunRecord = (hasExplicitRunId && hasUsage)
-			|| (hasName && hasStatus && hasRunner && hasTask && hasCwd);
+		const isRunRecord = isFabricRunRecord({
+			hasExplicitRunId,
+			hasUsage,
+			hasName,
+			hasStatus,
+			hasRunner,
+			hasTask,
+			hasCwd,
+		});
 		if (isRunRecord) mergeFabricRun(found, runId, cost === undefined ? {} : { cost });
 	}
 }
@@ -506,8 +524,28 @@ function sumAssistantCost(entries: unknown[]): number {
 }
 
 function findNestedSessionFiles(rootDir: string): string[] {
+	return findFiles(rootDir, (entry, parentDir) => {
+		const isNestedSession = entry.name === "session.jsonl";
+		const isTaskSession = path.basename(parentDir) === "tasks" && entry.name.endsWith(".jsonl");
+		return (isNestedSession || isTaskSession) && isPiSessionFile(path.join(parentDir, entry.name));
+	});
+}
+
+function isPiSessionFile(filePath: string): boolean {
+	return sessionHeaderFromEntries(readJsonLines(filePath)) !== null;
+}
+
+function findFileBySuffix(rootDir: string, suffix: string): string | null {
+	return findFiles(rootDir, (entry) => entry.name.endsWith(suffix), true)[0] ?? null;
+}
+
+function findFiles(
+	rootDir: string,
+	matches: (entry: fs.Dirent, parentDir: string) => boolean,
+	stopAfterFirst = false,
+): string[] {
 	if (!fs.existsSync(rootDir)) return [];
-	const out: string[] = [];
+	const found: string[] = [];
 	const stack = [rootDir];
 	while (stack.length > 0) {
 		const current = stack.pop();
@@ -522,40 +560,13 @@ function findNestedSessionFiles(rootDir: string): string[] {
 			const fullPath = path.join(current, entry.name);
 			if (entry.isDirectory()) {
 				stack.push(fullPath);
-			} else if (entry.isFile() && (
-				entry.name === "session.jsonl"
-				|| (path.basename(current) === "tasks" && entry.name.endsWith(".jsonl") && isPiSessionFile(fullPath))
-			)) {
-				out.push(fullPath);
+			} else if (entry.isFile() && matches(entry, current)) {
+				found.push(fullPath);
+				if (stopAfterFirst) return found;
 			}
 		}
 	}
-	return out;
-}
-
-function isPiSessionFile(filePath: string): boolean {
-	return sessionHeaderFromEntries(readJsonLines(filePath)) !== null;
-}
-
-function findFileBySuffix(rootDir: string, suffix: string): string | null {
-	if (!fs.existsSync(rootDir)) return null;
-	const stack = [rootDir];
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (!current) continue;
-		let entries: fs.Dirent[];
-		try {
-			entries = fs.readdirSync(current, { withFileTypes: true });
-		} catch {
-			continue;
-		}
-		for (const entry of entries) {
-			const fullPath = path.join(current, entry.name);
-			if (entry.isDirectory()) stack.push(fullPath);
-			else if (entry.isFile() && entry.name.endsWith(suffix)) return fullPath;
-		}
-	}
-	return null;
+	return found;
 }
 
 function contentText(content: unknown): string {
@@ -573,6 +584,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: null;
+}
+
+function isFabricRunRecord(shape: FabricRunShape): boolean {
+	return (shape.hasExplicitRunId && shape.hasUsage)
+		|| (shape.hasName && shape.hasStatus && shape.hasRunner && shape.hasTask && shape.hasCwd);
 }
 
 function finiteNonNegative(value: unknown): number | undefined {
