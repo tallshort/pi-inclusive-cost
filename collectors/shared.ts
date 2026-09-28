@@ -1,7 +1,18 @@
 import fs from "node:fs";
 
 export interface AttributedToolResult {
+	sessionFile: string;
 	toolName: string;
+	toolCallId?: string;
+	content: unknown;
+	details: unknown;
+	usage?: unknown;
+	cwd?: string;
+}
+
+export interface AttributedCustomMessage {
+	sessionFile: string;
+	customType: string;
 	content: unknown;
 	details: unknown;
 	cwd?: string;
@@ -53,6 +64,14 @@ export function sumAssistantCost(entries: unknown[]): number {
 	return total;
 }
 
+export function sumStandardPiSessionFile(filePath: string, expectedSessionId?: string): number | undefined {
+	const entries = readJsonLines(filePath);
+	const header = asRecord(entries[0]);
+	if (header?.type !== "session") return undefined;
+	if (expectedSessionId !== undefined && header.id !== expectedSessionId) return undefined;
+	return sumAssistantCost(entries);
+}
+
 export function contentText(content: unknown): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
@@ -72,6 +91,15 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
 
 export function finiteNonNegative(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+export function setGreatestContribution(
+	contributions: Map<string, number>,
+	key: string,
+	cost: number,
+): void {
+	const previous = contributions.get(key);
+	if (previous === undefined || cost > previous) contributions.set(key, cost);
 }
 
 export function sumContributions(contributions: Map<string, number>): number {

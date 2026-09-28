@@ -2,6 +2,13 @@
 
 ## Additional subagent collectors
 
+These collectors are needed because the audited package versions expose attributable child costs but do not report them through parent Pi tool-result usage.
+
+- [ ] Add shared attributed-collector infrastructure.
+  - Retain the parent `toolCallId` on attributed tool-result records so collectors can build stable per-call identities.
+  - Expose one reusable helper for summing an explicitly referenced Standard Pi session JSONL without broad directory scanning.
+  - Share keyed-contribution insertion and greatest-cumulative-cost deduplication where collector semantics match.
+  - Keep package-specific discovery and attribution rules inside each collector.
 - [ ] Add a `pi-subagents-j0k3r` collector.
   - Discover only runs referenced by the current chat's persisted tool results.
   - Treat `details.tasks[].usage.cost` as the authoritative source.
@@ -24,12 +31,20 @@
   - Add regression coverage for unrelated temporary sessions, repeated queries, missing sessions, and completed runs.
 
 - [ ] Add an `@bacnh85/pi-subagent` tool-result collector.
-  - Extend attributed tool-result records to retain the parent `toolCallId` needed for foreground identity.
+  - Use the parent `toolCallId` retained by the shared attributed-tool-result infrastructure for foreground identity.
   - Read foreground costs from `details.results[].usage.cost`, keyed by parent `toolCallId` plus result index.
   - Read background completion costs from the completion result's `task_id` and `usage.cost`, keyed by `task_id`.
   - Ignore launch-only records and deduplicate completion follow-ups and repeated queries so one in-memory child contributes once.
   - Keep Herdr-created sessions out of the generic collector unless a stable parent association or explicit session reference is available.
   - Add regression coverage for foreground batches, background completion, repeated retrieval, and foreground/background non-overlap.
+
+## Suggested implementation order
+
+1. Shared attributed-collector infrastructure.
+2. `pi-subagents-j0k3r`.
+3. `@bacnh85/pi-subagent`.
+4. `@ferris1225/pi-subagents`.
+5. `pi-better-subagents`.
 
 ## Upstream prerequisite
 

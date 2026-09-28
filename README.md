@@ -77,7 +77,7 @@ Restart Pi, or run `/reload`.
 | `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |
 | `wj-pi-subagents` | Starts children with `--no-session`; child replies contain text but no usage/cost |
 
-Planned collector work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md). `@tintinweb/pi-subagents` receives no package-specific collector here because its configurable reporting mechanism can attach child usage to the parent Session itself.
+Planned collector work is recorded in [`TODO.md`](https://github.com/tallshort/pi-inclusive-cost/blob/main/TODO.md). `@tintinweb/pi-subagents` is intentionally not planned for a package-specific collector: its optional `reportUsage` mode reports child cost through the parent Pi tool result, so collecting the same child usage again could double-count it.
 
 The unscoped `pi-subagents` name in the preserved upstream limitation below did not include a package identity or version range. Treat it as a description of the observed artifacts-only layout, not as a claim about every similarly named npm package or fork.
 

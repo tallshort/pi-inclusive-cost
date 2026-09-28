@@ -5,6 +5,7 @@ import {
 	asRecord,
 	readJsonLines,
 	sumAssistantCost,
+	type AttributedCustomMessage,
 	type AttributedToolResult,
 } from "./shared.js";
 
@@ -19,18 +20,20 @@ export interface PiSessionCollection {
 	delegatedCost: number;
 	delegatedCount: number;
 	toolResults: AttributedToolResult[];
+	customMessages: AttributedCustomMessage[];
 }
 
 export function collectPiSessions(rootFile: string): PiSessionCollection {
 	const sessionFiles = discoverSessionTree(rootFile);
 	const sessionContributions = new Map<string, number>();
 	const toolResults: AttributedToolResult[] = [];
+	const customMessages: AttributedCustomMessage[] = [];
 
 	for (const file of sessionFiles) {
 		const entries = readJsonLines(file);
 		sessionContributions.set(`pi-session:${file}`, sumAssistantCost(entries));
 		const header = sessionHeaderFromEntries(entries);
-		collectToolResults(entries, header?.cwd, toolResults);
+		collectAttributedRecords(entries, file, header?.cwd, toolResults, customMessages);
 	}
 
 	const rootKey = `pi-session:${rootFile}`;
@@ -44,6 +47,7 @@ export function collectPiSessions(rootFile: string): PiSessionCollection {
 		delegatedCost,
 		delegatedCount: Math.max(0, sessionFiles.size - 1),
 		toolResults,
+		customMessages,
 	};
 }
 
@@ -72,20 +76,35 @@ function discoverSessionTree(rootFile: string): Set<string> {
 	return visited;
 }
 
-function collectToolResults(
+function collectAttributedRecords(
 	entries: unknown[],
+	sessionFile: string,
 	cwd: string | undefined,
 	toolResults: AttributedToolResult[],
+	customMessages: AttributedCustomMessage[],
 ): void {
 	for (const entry of entries) {
 		const record = asRecord(entry);
+		if (record?.type === "custom_message" && typeof record.customType === "string") {
+			customMessages.push({
+				sessionFile,
+				customType: record.customType,
+				content: record.content,
+				details: record.details,
+				cwd,
+			});
+			continue;
+		}
 		const message = asRecord(record?.message);
 		if (record?.type !== "message" || message?.role !== "toolResult") continue;
 		if (typeof message.toolName !== "string") continue;
 		toolResults.push({
+			sessionFile,
 			toolName: message.toolName,
+			toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
 			content: message.content,
 			details: message.details,
+			usage: message.usage,
 			cwd,
 		});
 	}
