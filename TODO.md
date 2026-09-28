@@ -45,12 +45,12 @@ These collectors are needed because the audited package versions expose attribut
   - Deduplicate repeated persisted results so one synchronous child result contributes once.
   - Add regression coverage for multi-result calls, repeated results, missing/zero usage, and stable-ID fallback.
 
-- [ ] Add an `@ian-pascoe/pi-minimal-subagents` registry collector.
-  - Read only `type: "custom"`, `customType: "minimal-subagents.registry"` entries persisted in the current root Session.
-  - Treat settled-turn registry usage as authoritative and key contributions by stable agent plus turn/session identity.
-  - Use an explicitly referenced child `session_file` as fallback only when registry usage is unavailable; never scan all flat sibling sessions.
-  - Deduplicate registry updates and delivery records so cumulative/replayed state does not charge the same child turn twice.
-  - Add regression coverage for multiple agents and turns, replayed registry entries, unrelated flat sessions, missing usage, and referenced-session fallback.
+- [x] Add an `@ian-pascoe/pi-minimal-subagents` registry collector.
+  - Read only root Session `type: "custom"`, `customType: "minimal-subagents.registry"` entries owned by that root Session ID.
+  - Treat registry v1/v2 `turn-settled.result.usage.cost.total` as authoritative and key contributions by root, agent, and turn identity.
+  - Ignore checkpoint, delivery-ledger, coordinator-message, foreign-root, malformed, and missing-usage records; retain valid zero-cost turns.
+  - Do not fall back to the child `session_file`: it may contain imported, multi-turn, or fork-cloned history without a safe per-turn boundary.
+  - Add regression coverage for v1/v2 records, repeated turns, unrelated duplicate paths, foreign roots, missing/zero usage, and child Session exclusion.
 
 - [x] Add a `pi-subagents-lite` parent-record collector.
   - Read foreground cumulative cost from attributed `Agent` tool results that persist `details.cost`, keyed by parent Session and `toolCallId`/agent identity.
@@ -61,8 +61,7 @@ These collectors are needed because the audited package versions expose attribut
 
 ## Suggested implementation order
 
-1. `@ian-pascoe/pi-minimal-subagents`.
-2. `pi-better-subagents`.
+1. `pi-better-subagents`.
 
 ## Upstream prerequisite
 

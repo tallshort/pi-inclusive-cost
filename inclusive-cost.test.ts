@@ -418,6 +418,186 @@ test("pi-subagents-lite background completions require an attributed launch", as
 	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
 });
 
+test("minimal-subagents counts authoritative settled turns once", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const firstTurn = minimalTurnResult("root.reviewer", "root.reviewer:turn-1", 0.2);
+	const secondTurn = minimalTurnResult("root.reviewer", "root.reviewer:turn-2", 0.4);
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			minimalRegistryEntry("root-id", "agent-created", {
+				agent: minimalRegistryAgent("root.reviewer"),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.reviewer",
+				turn_id: firstTurn.turn_id,
+				started_at: "2026-01-01T00:00:01.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: firstTurn,
+				timestamp: "not-a-timestamp",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: firstTurn,
+				settled_at: "not-a-timestamp",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.reviewer", "root.reviewer:bad\0turn", 50),
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", { result: firstTurn }),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.reviewer",
+				turn_id: firstTurn.turn_id,
+				started_at: "2026-01-01T00:00:02.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.reviewer", "root.reviewer:turn-1", 0.3),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.reviewer",
+				turn_id: secondTurn.turn_id,
+				started_at: "2026-01-01T00:00:03.000Z",
+			}, 1),
+			minimalRegistryEntry("root-id", "turn-settled", { result: secondTurn }, 1),
+			minimalRegistryEntry("root-id", "delivery-pending", {
+				delivery: {
+					source_agent_id: "root.reviewer",
+					source_turn_id: secondTurn.turn_id,
+					result: minimalTurnResult("root.reviewer", secondTurn.turn_id as string, 50),
+				},
+			}),
+			minimalRegistryEntry("root-id", "checkpoint", {
+				snapshot: {
+					agents: [minimalRegistryAgent("root.reviewer", {
+						latest_result: minimalTurnResult("root.reviewer", "root.reviewer:turn-3", 50),
+					})],
+					tombstones: [],
+					deliveries: [],
+					coordination_deliveries: [],
+					wait_claimed_turns: [],
+					next_delivery_sequence: 1,
+				},
+			}),
+			minimalRegistryEntry("root-id", "checkpoint", {
+				snapshot: {
+					agents: [minimalRegistryAgent("root.fork", {
+						active_turn_id: "root.fork:turn-1",
+						active_turn_started_at: "2026-01-01T00:00:04.000Z",
+					})],
+					tombstones: [],
+					deliveries: [null],
+					coordination_deliveries: [],
+					wait_claimed_turns: [],
+					next_delivery_sequence: 1,
+				},
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.fork", "root.fork:turn-1", 50),
+			}),
+			minimalRegistryEntry("root-id", "agent-created", {
+				agent: minimalRegistryAgent("root.bogus", {
+					launch_contract: {
+						session_context: "omit",
+						project_context: "inherit",
+						model: "provider/model",
+						thinking_level: "bogus",
+						ordinary_tools: [],
+					},
+				}),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.bogus",
+				turn_id: "root.bogus:turn-1",
+				started_at: "2026-01-01T00:00:05.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.bogus", "root.bogus:turn-1", 50),
+			}),
+			minimalRegistryEntry("root-id", "agent-created", {
+				agent: minimalRegistryAgent("root"),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root",
+				turn_id: "root:turn-1",
+				started_at: "2026-01-01T00:00:06.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root", "root:turn-1", 50),
+			}),
+			minimalRegistryEntry("other-root", "turn-settled", {
+				result: minimalTurnResult("root.reviewer", "root.reviewer:turn-4", 50),
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("other", "unowned-turn", 50),
+			}),
+			customMessage("minimal-subagents.result", {
+				source_agent_id: "root.reviewer",
+				source_turn_id: "root.reviewer:turn-2",
+				usage: minimalUsage(50),
+			}),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.70/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+});
+
+test("minimal-subagents ignores missing registry usage and child session totals", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const childFile = path.join(sessionDir, "minimal-child.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			minimalRegistryEntry("root-id", "agent-created", {
+				agent: minimalRegistryAgent("root.worker", {
+					session_file: childFile,
+					session_id: "child-id",
+					session_leaf_id: "child-leaf-id",
+				}),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.worker",
+				turn_id: "root.worker:missing",
+				started_at: "2026-01-01T00:00:01.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.worker", "root.worker:missing"),
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.worker",
+				turn_id: "root.worker:free",
+				started_at: "2026-01-01T00:00:02.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.worker", "root.worker:free", 0),
+			}),
+		],
+	});
+	writeSession(childFile, {
+		id: "child-id",
+		cost: 50,
+		cwd: sessionDir,
+		extra: [customEntry("minimal-subagents.identity", {
+			version: 1,
+			original_root_session_id: "root-id",
+			canonical_agent_id: "root.worker",
+			direct_parent_id: "root",
+			created_at: "2026-01-01T00:00:00.000Z",
+		})],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -866,6 +1046,70 @@ function liteCompletionContent(shortId: string): string {
 	return `[Subagent "general-purpose" ${shortId} completed]\n\ndone`;
 }
 
+function minimalRegistryEntry(
+	rootSessionId: string,
+	event: string,
+	payload: Record<string, unknown>,
+	version: 1 | 2 = 2,
+): unknown {
+	return customEntry("minimal-subagents.registry", {
+		version,
+		root_session_id: rootSessionId,
+		timestamp: "2026-01-01T00:00:00.000Z",
+		event,
+		...payload,
+	});
+}
+
+function minimalRegistryAgent(
+	agentId: string,
+	extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		agent_id: agentId,
+		friendly_id: agentId.split(".").at(-1),
+		parent_id: "root",
+		created_at: "2026-01-01T00:00:00.000Z",
+		spawn_entry_id: "spawn-entry",
+		launch_contract: {
+			session_context: "omit",
+			project_context: "inherit",
+			model: "provider/model",
+			thinking_level: "medium",
+			ordinary_tools: [],
+		},
+		capability_ceiling: [],
+		availability: "available",
+		missing_dependencies: [],
+		recent_messages: [],
+		...extra,
+	};
+}
+
+function minimalTurnResult(agentId: string, turnId: string, cost?: number): Record<string, unknown> {
+	return {
+		agent_id: agentId,
+		turn_id: turnId,
+		status: "completed",
+		output: "done",
+		...(cost === undefined ? {} : { usage: minimalUsage(cost) }),
+	};
+}
+
+function minimalUsage(cost: number): Record<string, unknown> {
+	return {
+		input: 10,
+		output: 5,
+		cacheRead: 0,
+		cacheWrite: 0,
+		totalTokens: 15,
+		cost: { input: cost, output: 0, cacheRead: 0, cacheWrite: 0, total: cost },
+	};
+}
+
+function customEntry(customType: string, data: unknown): unknown {
+	return { type: "custom", customType, data };
+}
 
 function customMessage(customType: string, details: unknown, content = "completed"): unknown {
 	return {
