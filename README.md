@@ -27,6 +27,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Standard Pi sessions | Root and linked child Session JSONL files containing `usage.cost.total` |
 | `@bacnh85/pi-subagent` | Attributed foreground tool-result usage and background completion messages |
 | `pi-subagents-j0k3r` | Attributed `subagent_*` tool-result task usage, with an explicitly referenced standard session as fallback |
+| `@ferris1225/pi-subagents` | Run IDs from attributed launch results and cumulative usage from persisted `subagent_status` results; explicit standard sessions are fallback only |
 | Pi Fabric | Run IDs and cumulative usage from `fabric_exec` rendered output or structured agent audit details, with attributable `.fabric` exports as fallback |
 | Pi Taskflow | Run IDs returned by `taskflow`, then usage-bearing trace events or an older snapshot fallback |
 
@@ -40,6 +41,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `oira666_pi-subagent` | Standard Pi sessions | Persisted RPC children use nested `subagents/.../session.jsonl` files under the parent session stem |
 | `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | In-memory foreground results are keyed by parent tool call; background completions are keyed by task ID |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results provide stable task identities and usage; explicit child sessions are fallback only |
+| `@ferris1225/pi-subagents` | `@ferris1225/pi-subagents` | Launch results establish stable run IDs; persisted status results provide usage; detached completion text is not parsed |
 | Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
 | Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
 
@@ -73,7 +75,6 @@ Restart Pi, or run `/reload`.
 
 | Extension | Reason |
 | --- | --- |
-| `@ferris1225/pi-subagents` | Stores sessions in a separate project directory; a collector based on its returned `runId`/session reference is planned |
 | `pi-better-subagents` | Stores standard sessions in a separate temporary tree without `parentSession`; a collector keyed by the returned `runId` is planned |
 | `@esso0428/pi-subagents` | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |

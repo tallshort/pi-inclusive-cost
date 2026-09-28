@@ -172,6 +172,110 @@ test("bacnh85 deduplicates background task IDs within each parent session", asyn
 	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
 });
 
+test("Ferris results use run identity, greatest cost, and parent-session scope", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "parallel launch", ferrisDetails([
+				ferrisResult(1, 0, { exitCode: -1 }),
+				ferrisResult(2, 0, { exitCode: -1 }),
+			]), undefined, "ferris-call-1"),
+			toolResult("subagent_status", "settled", ferrisStatusDetails([
+				ferrisStatusRun(1, 0.2),
+				ferrisStatusRun(2, 0.3),
+			]), undefined, "ferris-status-1"),
+			toolResult("subagent_status", "repeated", ferrisStatusDetails([
+				ferrisStatusRun(1, 0.25),
+			]), undefined, "ferris-status-2"),
+			toolResult("subagent", "parent reported launch", ferrisDetails([
+				ferrisResult(3, 0, { exitCode: -1 }),
+			]), 0.5, "ferris-call-3"),
+			toolResult("subagent_status", "already parent reported", ferrisStatusDetails([
+				ferrisStatusRun(3, 0.5),
+			]), undefined, "ferris-status-3"),
+			toolResult("subagent", "pending only", ferrisDetails([
+				ferrisResult(4, 0, { exitCode: -1 }),
+			]), undefined, "ferris-call-4"),
+			toolResult("subagent", "other package", {
+				mode: "single",
+				background: true,
+				results: [{
+					agent: "other",
+					task: "Work",
+					exitCode: -1,
+					messages: [],
+					stderr: "",
+					runId: 99,
+					usage: { cost: 0 },
+				}],
+			}, undefined, "other-call"),
+			toolResult("subagent_status", "other package status", ferrisStatusDetails([
+				ferrisStatusRun(99, 50),
+			]), undefined, "other-status"),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "same run id launch in child session", ferrisDetails([
+				ferrisResult(1, 0, { exitCode: -1 }),
+			]), undefined, "ferris-call-1"),
+			toolResult("subagent_status", "child settled", ferrisStatusDetails([
+				ferrisStatusRun(1, 0.4),
+			]), undefined, "ferris-status-1"),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+});
+
+test("Ferris falls back only to an explicitly referenced standard session", async (t) => {
+	const root = temporaryDirectory(t);
+	const rootFile = path.join(root, "root.jsonl");
+	const sessionDir = path.join(root, "external", "referenced");
+	const sessionId = "ferris-session-id";
+	const referencedFile = path.join(sessionDir, `2026-01-01_${sessionId}.jsonl`);
+	const unrelatedFile = path.join(root, "external", "unrelated", "2026-01-01_other.jsonl");
+	const mismatchedDir = path.join(root, "external", "mismatched");
+	const mismatchedId = "expected-session-id";
+	const mismatchedFile = path.join(mismatchedDir, `2026-01-01_${mismatchedId}.jsonl`);
+	writeSession(referencedFile, { id: sessionId, cost: 0.6, cwd: root });
+	writeSession(unrelatedFile, { id: "other", cost: 9, cwd: root });
+	writeSession(mismatchedFile, { id: "different-session-id", cost: 50, cwd: root });
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: root,
+		extra: [
+			toolResult("subagent", "missing inline usage", ferrisDetails([
+				ferrisResult(10, undefined, { sessionDir, sessionId }),
+			]), undefined, "ferris-call-1"),
+			toolResult("subagent", "repeated result", ferrisDetails([
+				ferrisResult(10, undefined, { sessionDir, sessionId }),
+			]), undefined, "ferris-call-2"),
+			toolResult("subagent", "mismatched session header", ferrisDetails([
+				ferrisResult(11, undefined, { sessionDir: mismatchedDir, sessionId: mismatchedId }),
+			]), undefined, "ferris-call-3"),
+			toolResult("subagent", "missing reference", ferrisDetails([
+				ferrisResult(12),
+			]), undefined, "ferris-call-4"),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -489,6 +593,51 @@ function bacnh85Details(results: unknown[], backgroundTaskId?: string): Record<s
 		...(backgroundTaskId === undefined ? {} : { backgroundTaskId }),
 	};
 }
+
+function ferrisResult(
+	runId: number,
+	cost?: number,
+	options: { exitCode?: number; sessionDir?: string; sessionId?: string } = {},
+): Record<string, unknown> {
+	return {
+		agent: "scout",
+		task: "Investigate",
+		exitCode: options.exitCode ?? 0,
+		messages: [],
+		stderr: "",
+		runId,
+		projectCwd: "/project",
+		isolation: "shared",
+		...(cost === undefined ? {} : {
+			usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, contextTokens: 2, turns: 1 },
+		}),
+		...(options.sessionDir === undefined ? {} : { sessionDir: options.sessionDir }),
+		...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+	};
+}
+
+function ferrisDetails(results: unknown[]): Record<string, unknown> {
+	return {
+		mode: results.length > 1 ? "parallel" : "single",
+		results,
+		background: true,
+	};
+}
+
+function ferrisStatusRun(id: number, cost: number): Record<string, unknown> {
+	return {
+		id,
+		agent: "scout",
+		state: "completed",
+		usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, contextTokens: 2, turns: 1 },
+		exitCode: 0,
+	};
+}
+
+function ferrisStatusDetails(runs: unknown[]): Record<string, unknown> {
+	return { runs };
+}
+
 
 function customMessage(customType: string, details: unknown): unknown {
 	return {

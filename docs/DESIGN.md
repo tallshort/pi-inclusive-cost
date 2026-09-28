@@ -25,6 +25,7 @@ bacnh85:<parent-session-path>:<tool-call-id>:<result-index>
 bacnh85-background:<parent-session-path>:<task-id>
 j0k3r:<parent-session-path>:<task-id>:<attempt>
 j0k3r-session:<absolute-session-path>
+ferris:<parent-session-path>:<run-id>
 fabric:<run-id>
 taskflow:<run-id>:<trace-line>
 taskflow-fallback:<execution-fingerprint>
@@ -39,6 +40,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
 | `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
+| `@ferris1225/pi-subagents` | Attributed launch identities plus cumulative usage in persisted `subagent_status` results | Parent session path + run ID |
 | Pi Fabric | Attributed run records returned by `fabric_exec` | `fabric:<run-id>` |
 | Pi Taskflow | Usage-bearing events in an attributed run trace | `taskflow:<run-id>:<trace-line>` |
 
@@ -52,6 +54,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
 | `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | Parent tool calls identify foreground results; completion messages identify background tasks |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results identify task attempts and their usage; explicit standard sessions are fallback only |
+| `@ferris1225/pi-subagents` | `@ferris1225/pi-subagents` | Launch results identify runs; persisted status results provide usage; explicit standard sessions are fallback only |
 | Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
 
@@ -63,6 +66,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 - `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results and custom messages.
 - `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
+- `collectors/ferris.ts` owns Ferris launch/status attribution, deduplication, and explicit-session fallback.
 - `collectors/j0k3r.ts` owns j0k3r task-result attribution, attempt deduplication, and explicit-session fallback.
 - `collectors/taskflow.ts` owns Taskflow run lookup, trace accounting, and snapshot fallback.
 - `collectors/shared.ts` contains internal record, contribution, and JSON-file helpers shared by collectors.
@@ -111,6 +115,12 @@ Persisted `subagent_run`, `subagent_continue`, status, result, list, and cancel 
 
 When no inline usage was persisted for a task, an explicitly returned `nested_session_path` may supply a standard Pi Session fallback. The path must identify a valid Session JSONL; conflicting paths are omitted, and the collector never scans the package's global history directory.
 
+### `@ferris1225/pi-subagents`
+
+A persisted `subagent` launch result supplies Ferris-specific run metadata and a stable numeric `runId`. Version 4.3.19 keeps that launch result pending even for `wait: true`; cumulative cost therefore comes from later persisted `subagent_status` records for a run already referenced by the same parent Session. Repeated status observations retain the greatest `usage.cost`. Runs covered by parent tool-result usage are omitted.
+
+A compatible completed result may additionally supply explicit `sessionDir` and `sessionId` for one standard Pi Session fallback when inline usage is absent. Conflicting references, ambiguous filenames, and mismatched Session headers are omitted. The collector never scans the package's project-wide sessions or results directories. Detached completion messages contain formatted text rather than structured result details and are not treated as billing records.
+
 ### Pi Fabric
 
 A persisted `fabric_exec` tool result can contain one or more Fabric run records. Fabric may render those records in `content`, or retain them only in successful `details.audits[]` entries for `agents.run`. Each record exposes a stable `id` and cumulative `usage.cost`; only the direct attributable audit result is parsed. The collector uses:
@@ -155,7 +165,6 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 
 | Extension | Status | Reason |
 | --- | --- | --- |
-| `@ferris1225/pi-subagents` | Planned | Standard sessions live in a separate project directory; parent results expose stable run and session references |
 | `pi-better-subagents` | Planned | Standard sessions live in a separate temporary tree without a parent header; spawn results expose a stable `runId` |
 | `@esso0428/pi-subagents` | Blocked | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
@@ -175,3 +184,4 @@ Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The st
 - Fabric exports redirected outside the standard agent session tree are not discovered automatically.
 - Old Taskflow snapshots without traces cannot preserve every historical recompute attempt.
 - Parent tool-result usage without a stable child/run identity is ignored to avoid double-counting.
+- Ferris detached completion text is not parsed; a run needs a persisted structured status/completed result to be collectible.

@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 import { collectBacnh85 } from "./collectors/bacnh85.js";
 import { collectFabric } from "./collectors/fabric.js";
+import { collectFerris } from "./collectors/ferris.js";
 import { collectJ0k3r } from "./collectors/j0k3r.js";
 import { collectPiSessions } from "./collectors/pi-sessions.js";
 import { collectTaskflow } from "./collectors/taskflow.js";
@@ -60,11 +61,12 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const sessions = collectPiSessions(rootFile);
 	const bacnh85 = collectBacnh85(sessions.toolResults, sessions.customMessages);
 	const fabric = collectFabric(rootFile, sessions.toolResults);
+	const ferris = collectFerris(sessions.toolResults);
 	const j0k3r = collectJ0k3r(sessions.toolResults);
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		inclusive: sessions.directCost + sessions.delegatedCost + bacnh85.cost + fabric.cost + j0k3r.cost + taskflow.cost,
-		foldedCount: sessions.delegatedCount + bacnh85.count + fabric.count + j0k3r.count + taskflow.count,
+		inclusive: sessions.directCost + sessions.delegatedCost + bacnh85.cost + fabric.cost + ferris.cost + j0k3r.cost + taskflow.cost,
+		foldedCount: sessions.delegatedCount + bacnh85.count + fabric.count + ferris.count + j0k3r.count + taskflow.count,
 	};
 }

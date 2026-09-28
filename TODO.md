@@ -16,12 +16,12 @@ These collectors are needed because the audited package versions expose attribut
   - Use the package's external standard Pi session JSONL only as a fallback when the parent result supplies a stable session reference; never scan the global history directory indiscriminately.
   - Add regression coverage for repeated results, unrelated global sessions, missing usage, and fallback behavior.
 
-- [ ] Add an `@ferris1225/pi-subagents` collector.
-  - Discover only runs referenced by the current chat's `details.results[]` records.
-  - Use `runId` as the run identity and `details.results[].usage.cost` as the authoritative source.
+- [x] Add an `@ferris1225/pi-subagents` collector.
+  - Discover only Ferris runs whose stable `runId` appears in the current chat's attributed `subagent` launch results.
+  - Use cumulative `details.runs[].usage.cost` from persisted `subagent_status` results as the authoritative source.
   - Fall back to the explicitly referenced `sessionDir` and `sessionId` standard Pi JSONL when inline usage is unavailable.
   - Never aggregate the project-wide `ferris-pi-subagents` session or results directories.
-  - Add regression coverage for repeated run results, resumed runs, unrelated project sessions, and session fallback.
+  - Add regression coverage for repeated status results, cross-session run IDs, unrelated package shapes, parent-reported usage, unrelated project sessions, and session fallback.
 
 - [ ] Add a `pi-better-subagents` collector.
   - Discover only runs whose stable `runId` was returned by a `subagent_spawn` result persisted in the current parent chat.
@@ -40,8 +40,7 @@ These collectors are needed because the audited package versions expose attribut
 
 ## Suggested implementation order
 
-1. `@ferris1225/pi-subagents`.
-2. `pi-better-subagents`.
+1. `pi-better-subagents`.
 
 ## Upstream prerequisite
 
