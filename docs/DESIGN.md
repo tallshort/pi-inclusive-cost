@@ -44,6 +44,8 @@ The current root session discovers descendants through:
 
 Discovery runs to a fixed point. Absolute file paths are the deduplication identity.
 
+Persisted native children from the `@xzzpig/pi-subagents` fork use `<session-stem>/run-*/session.jsonl` and are therefore covered by the generic nested-session collector without a package-specific collector. Runs configured without a persistent child session remain out of scope.
+
 ### `@gotgenes/pi-subagents`
 
 Current releases persist children in Pi's standard format under:

@@ -17,7 +17,7 @@ Pi's built-in statusline sums cost from the current session's own message histor
 
 The extension rebuilds a deduplicated total from persisted records attributable to the current chat. It supports:
 
-- standard nested and parent-linked Pi subagent sessions;
+- standard nested and parent-linked Pi subagent sessions, including persisted native sessions from `@xzzpig/pi-subagents`;
 - `@gotgenes/pi-subagents` task sessions under the parent session's `tasks/` tree;
 - Pi Fabric runs whose run IDs are retained in rendered output or structured audit details;
 - Pi Taskflow runs whose run IDs are returned to the chat.
