@@ -276,6 +276,78 @@ test("Ferris falls back only to an explicitly referenced standard session", asyn
 	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
 });
 
+test("Archimedes collects single and parallel results with stable identities", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "single", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000a", 0.2),
+			]), undefined, "arch-call-1"),
+			toolResult("subagent", "repeated", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000a", 0.25),
+			]), undefined, "arch-call-2"),
+			toolResult("subagent", "parallel", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000b", 0.3),
+				archimedesResult(undefined, 0.4),
+			]), undefined, "arch-call-3"),
+			toolResult("subagent", "free child", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000f", 0),
+			]), undefined, "arch-call-4"),
+			toolResult("subagent", "missing usage", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000d"),
+			]), undefined, "arch-call-5"),
+			toolResult("subagent", "parent reported", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000c", 0.5),
+			]), 0.5, "arch-call-6"),
+			toolResult("subagent", "other package", archimedesLikeOtherPackage(), undefined, "other-call"),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+});
+
+test("Archimedes fallback identities are parent-session scoped", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "no child session id", archimedesDetails([
+				archimedesResult("00000000-0000-4000-8000-00000000000e", 0.2),
+			]), undefined, "same-call"),
+			toolResult("subagent", "shared child", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000e", 0.4),
+			]), undefined, "root-child"),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "same fallback identity fields", archimedesDetails([
+				archimedesResult("00000000-0000-4000-8000-00000000000e", 0.3),
+			]), undefined, "same-call"),
+			toolResult("subagent", "same actual child", archimedesDetails([
+				archimedesResult("00000000-0000-7000-8000-00000000000e", 0.5),
+			]), undefined, "nested-child"),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -636,6 +708,54 @@ function ferrisStatusRun(id: number, cost: number): Record<string, unknown> {
 
 function ferrisStatusDetails(runs: unknown[]): Record<string, unknown> {
 	return { runs };
+}
+
+function archimedesResult(childSessionId?: string, cost?: number): Record<string, unknown> {
+	const progress = {
+		agent: "reviewer",
+		status: "completed",
+		task: "Review",
+		toolCount: 1,
+		inputTokens: 1,
+		outputTokens: 1,
+		tokens: 2,
+		cost: cost ?? 0,
+		durationMs: 10,
+		model: "provider/model",
+		output: "done",
+		recentOutput: ["done"],
+		toolCalls: [],
+	};
+	return {
+		agent: "reviewer",
+		task: "Review",
+		...(childSessionId === undefined ? {} : { childSessionId }),
+		exitCode: 0,
+		...(cost === undefined ? {} : {
+			usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, turns: 1 },
+		}),
+		model: "provider/model",
+		finalOutput: "done",
+		progress,
+		progressSummary: { toolCount: 1, tokens: 2, durationMs: 10 },
+	};
+}
+
+function archimedesDetails(results: Record<string, unknown>[]): Record<string, unknown> {
+	return {
+		mode: results.length > 1 ? "parallel" : "single",
+		results,
+		progress: results.map((result) => result.progress),
+	};
+}
+
+function archimedesLikeOtherPackage(): Record<string, unknown> {
+	const result = archimedesResult("00000000-0000-7000-8000-000000000099", 50);
+	return {
+		mode: "single",
+		results: [result],
+		progress: [{ ...(result.progress as Record<string, unknown>), inputTokens: 999 }],
+	};
 }
 
 

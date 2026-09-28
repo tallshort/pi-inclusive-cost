@@ -38,9 +38,24 @@ These collectors are needed because the audited package versions expose attribut
   - Keep Herdr-created sessions out of the generic collector unless a stable parent association or explicit session reference is available.
   - Add regression coverage for foreground batches, background completion, repeated retrieval, and foreground/background non-overlap.
 
+- [x] Add an `@pi-archimedes/subagent` tool-result collector.
+  - Read authoritative costs from the current parent chat's persisted `details.results[].usage.cost` records; no child Session fallback exists because children run with `--no-session`.
+  - Prefer a valid Pi UUIDv7 in `childSessionId` as the contribution identity and fall back to parent `toolCallId` plus result index when necessary.
+  - Ignore transient `Events.COST_UPDATE` bus events because they are not a stable persisted billing source.
+  - Deduplicate repeated persisted results so one synchronous child result contributes once.
+  - Add regression coverage for multi-result calls, repeated results, missing/zero usage, and stable-ID fallback.
+
+- [ ] Add an `@ian-pascoe/pi-minimal-subagents` registry collector.
+  - Read only `type: "custom"`, `customType: "minimal-subagents.registry"` entries persisted in the current root Session.
+  - Treat settled-turn registry usage as authoritative and key contributions by stable agent plus turn/session identity.
+  - Use an explicitly referenced child `session_file` as fallback only when registry usage is unavailable; never scan all flat sibling sessions.
+  - Deduplicate registry updates and delivery records so cumulative/replayed state does not charge the same child turn twice.
+  - Add regression coverage for multiple agents and turns, replayed registry entries, unrelated flat sessions, missing usage, and referenced-session fallback.
+
 ## Suggested implementation order
 
-1. `pi-better-subagents`.
+1. `@ian-pascoe/pi-minimal-subagents`.
+2. `pi-better-subagents`.
 
 ## Upstream prerequisite
 

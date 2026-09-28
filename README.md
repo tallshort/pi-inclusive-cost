@@ -25,6 +25,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Collector | Attributed source |
 | --- | --- |
 | Standard Pi sessions | Root and linked child Session JSONL files containing `usage.cost.total` |
+| `@pi-archimedes/subagent` | Attributed synchronous `details.results[].usage.cost` records |
 | `@bacnh85/pi-subagent` | Attributed foreground tool-result usage and background completion messages |
 | `pi-subagents-j0k3r` | Attributed `subagent_*` tool-result task usage, with an explicitly referenced standard session as fallback |
 | `@ferris1225/pi-subagents` | Run IDs from attributed launch results and cumulative usage from persisted `subagent_status` results; explicit standard sessions are fallback only |
@@ -36,6 +37,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Extension | Collector | Notes |
 | --- | --- | --- |
 | Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for nested `session.jsonl` or parent-linked sibling sessions; not a blanket claim about any package named `pi-subagents` |
+| `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous results expose stable child Session IDs and usage without persisting child Session files |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Persisted RPC children use nested `subagents/.../session.jsonl` files under the parent session stem |

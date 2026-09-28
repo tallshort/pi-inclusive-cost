@@ -21,6 +21,8 @@ Collectors produce keyed contributions:
 
 ```text
 pi-session:<absolute-session-path>
+archimedes:<child-session-id>
+archimedes-fallback:<parent-session-path>:<tool-call-id>:<result-index>
 bacnh85:<parent-session-path>:<tool-call-id>:<result-index>
 bacnh85-background:<parent-session-path>:<task-id>
 j0k3r:<parent-session-path>:<task-id>:<attempt>
@@ -38,6 +40,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Collector | Authoritative source | Contribution identity |
 | --- | --- | --- |
 | Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
+| `@pi-archimedes/subagent` | Synchronous result usage in parent `subagent` tool results | Child Session ID, or parent Session/tool-call/result identity |
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
 | `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
 | `@ferris1225/pi-subagents` | Attributed launch identities plus cumulative usage in persisted `subagent_status` results | Parent session path + run ID |
@@ -49,6 +52,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Extension | Collector | Relationship and mechanism |
 | --- | --- | --- |
 | Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for standard nested or parent-linked child sessions, independent of package naming |
+| `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous parent tool results persist stable child Session IDs and usage |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
@@ -64,6 +68,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 
 - `inclusive-cost.ts` owns Pi event/command registration, invokes the collectors, combines their summaries, and renders the UI.
 - `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results and custom messages.
+- `collectors/archimedes.ts` owns Archimedes result attribution and deduplication.
 - `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
 - `collectors/ferris.ts` owns Ferris launch/status attribution, deduplication, and explicit-session fallback.
@@ -102,6 +107,12 @@ Current releases persist children in Pi's standard format under:
 The child header records the parent session ID. Directory containment supplies the stable parent-file association; the header confirms that the file is a Pi session. Nested delegation creates another child session tree and is found by fixed-point discovery.
 
 The installed fork accumulates token usage for its own UI but does not currently copy a priced usage object into the parent tool result. The `tasks/*.jsonl` child session is therefore the dedicated compatibility source implemented by this extension.
+
+### `@pi-archimedes/subagent`
+
+Synchronous single and parallel calls persist `details.results[]` records with priced `usage.cost`. A valid Pi UUIDv7 in `childSessionId` is the preferred contribution identity. Missing or malformed IDs fall back to the parent Session path, `toolCallId`, and result index. Repeated records retain the greatest cost; zero-cost children remain valid contributions, while missing or parent-reported usage is omitted.
+
+Children run with `--no-session`, so no Session-file fallback exists. Transient `Events.COST_UPDATE` notifications are not persisted billing records and are ignored.
 
 ### `@bacnh85/pi-subagent`
 

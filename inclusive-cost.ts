@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { collectArchimedes } from "./collectors/archimedes.js";
 import { collectBacnh85 } from "./collectors/bacnh85.js";
 import { collectFabric } from "./collectors/fabric.js";
 import { collectFerris } from "./collectors/ferris.js";
@@ -59,6 +60,7 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	if (!rootFile) return null;
 
 	const sessions = collectPiSessions(rootFile);
+	const archimedes = collectArchimedes(sessions.toolResults);
 	const bacnh85 = collectBacnh85(sessions.toolResults, sessions.customMessages);
 	const fabric = collectFabric(rootFile, sessions.toolResults);
 	const ferris = collectFerris(sessions.toolResults);
@@ -66,7 +68,7 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		inclusive: sessions.directCost + sessions.delegatedCost + bacnh85.cost + fabric.cost + ferris.cost + j0k3r.cost + taskflow.cost,
-		foldedCount: sessions.delegatedCount + bacnh85.count + fabric.count + ferris.count + j0k3r.count + taskflow.count,
+		inclusive: sessions.directCost + sessions.delegatedCost + archimedes.cost + bacnh85.cost + fabric.cost + ferris.cost + j0k3r.cost + taskflow.cost,
+		foldedCount: sessions.delegatedCount + archimedes.count + bacnh85.count + fabric.count + ferris.count + j0k3r.count + taskflow.count,
 	};
 }
