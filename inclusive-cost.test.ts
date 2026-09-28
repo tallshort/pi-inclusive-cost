@@ -1,0 +1,375 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import inclusiveCost from "./inclusive-cost.js";
+
+test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const taskFile = path.join(sessionDir, "root", "tasks", "child.jsonl");
+	writeSession(rootFile, { id: "root-id", cost: 1.25, cwd: sessionDir });
+	writeSession(taskFile, { id: "child-id", parentSession: "root-id", cost: 0.75, cwd: sessionDir });
+
+	const notification = await invokeCost(rootFile);
+	assert.equal(notification, [
+		"Direct (this thread): $1.25",
+		"Pi subagent sessions (1): $0.75",
+		"Fabric runs (0): $0.00",
+		"Taskflow runs (0): $0.00",
+		"Inclusive total: $2.00",
+	].join("\n"));
+});
+
+test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	const flatGrandchild = path.join(path.dirname(nestedFile), "consult.jsonl");
+	writeSession(rootFile, { id: "root-id", cost: 1, cwd: sessionDir });
+	writeSession(nestedFile, { id: "nested-id", cost: 0.5, cwd: sessionDir });
+	writeSession(flatGrandchild, {
+		id: "flat-id",
+		parentSession: nestedFile,
+		cost: 0.25,
+		cwd: sessionDir,
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Pi subagent sessions \(2\): \$0\.75/);
+	assert.match(notification, /Inclusive total: \$1\.75/);
+});
+
+test("inclusive status sorts first and renders dim with a trailing separator", (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	writeSession(rootFile, { id: "root-id", cost: 1.25, cwd: sessionDir });
+	writeSession(path.join(sessionDir, "root", "tasks", "child.jsonl"), {
+		id: "child-id",
+		parentSession: "root-id",
+		cost: 0.75,
+		cwd: sessionDir,
+	});
+
+	let sessionStart: ((event: unknown, ctx: unknown) => void) | undefined;
+	inclusiveCost({
+		on: (event: string, handler: typeof sessionStart) => {
+			if (event === "session_start") sessionStart = handler;
+		},
+		registerCommand: () => {},
+	} as never);
+	assert.ok(sessionStart);
+
+	let status: { key: string; text: string | undefined } | undefined;
+	sessionStart({}, {
+		sessionManager: { getSessionFile: () => rootFile },
+		ui: {
+			theme: { fg: (color: string, text: string) => `<${color}>${text}</${color}>` },
+			setStatus: (key: string, text: string | undefined) => { status = { key, text }; },
+		},
+	});
+	assert.deepEqual(status, {
+		key: "00-inclusiveCost",
+		text: "<dim>$2.00 (incl) •</dim>",
+	});
+});
+
+test("Fabric run results are attributed by run ID and repeated cumulative results use the greatest cost", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const rootFile = path.join(cwd, "root.jsonl");
+	const firstRun = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+	const secondRun = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+	const thirdRun = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd,
+		extra: [
+			toolResult("fabric_exec", `- id: ${firstRun}\n  name: reviewer\n  task: review\n  status: running\n  runner: pi\n  cwd: /project\n  usage:\n    cost: 0.20`),
+			toolResult("fabric_exec", `review:\n  id: ${firstRun}\n  name: reviewer\n  task: review\n  status: completed\n  runner: pi\n  cwd: /project\n  usage:\n    cost: 0.35`),
+			toolResult("fabric_exec", JSON.stringify({ other: {
+				id: secondRun,
+				name: "reviewer",
+				task: "review",
+				status: "completed",
+				runner: "pi",
+				cwd: "/project",
+				usage: { cost: 0.4 },
+			} })),
+			toolResult("fabric_exec", JSON.stringify({ uuidRun: {
+				id: "12345678-1234-1234-1234-123456789abc",
+				runId: thirdRun,
+				usage: { cost: 0.25 },
+			}, ignoredBusinessObject: { id: "ffffffffffffffffffffffffffffffff", usage: { cost: 50 } } })),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Fabric runs \(3\): \$1\.00/);
+	assert.match(notification, /Inclusive total: \$2\.00/);
+});
+
+test("Fabric agent audit details contribute costs when the rendered output omits run IDs", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const rootFile = path.join(cwd, "root.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd,
+		extra: [toolResult("fabric_exec", [
+			"- axis: standards-reviewer",
+			"  status: completed",
+			"  model: openai-codex/gpt-6-sol",
+		].join("\n"), {
+			success: true,
+			kernel: "typescript",
+			audits: [
+				fabricAgentAudit("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0.0985588),
+				fabricAgentAudit("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 0.0632424),
+				fabricAgentAudit("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0.01),
+				fabricNestedBusinessAudit("cccccccccccccccccccccccccccccccc", 50),
+				{ ...fabricAgentAudit("dddddddddddddddddddddddddddddddd", 50), success: false },
+				{ ...fabricAgentAudit("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 50), provider: "business" },
+			],
+		}),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Fabric runs \(2\): \$0\.16/);
+	assert.match(notification, /Inclusive total: \$1\.16/);
+});
+
+test("Fabric session export is only a fallback for a run ID returned to this chat", async (t) => {
+	const root = temporaryDirectory(t);
+	const sessionsRoot = path.join(root, "agent", "sessions");
+	const sessionDir = path.join(sessionsRoot, "--project--");
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const attributedRun = "cccccccccccccccccccccccccccccccc";
+	const unrelatedRun = "dddddddddddddddddddddddddddddddd";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: "/project",
+		extra: [toolResult("fabric_exec", `run:\n  id: ${attributedRun}\n  name: reviewer\n  task: review\n  status: completed\n  runner: pi\n  cwd: /project`)],
+	});
+	writeSession(path.join(sessionsRoot, ".fabric", "--project--", `stamp_${attributedRun}.jsonl`), {
+		id: "fabric-attributed",
+		cost: 0.6,
+		cwd: "/project",
+	});
+	writeSession(path.join(sessionsRoot, ".fabric", "--project--", `stamp_${unrelatedRun}.jsonl`), {
+		id: "fabric-unrelated",
+		cost: 9,
+		cwd: "/project",
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Fabric runs \(1\): \$0\.60/);
+	assert.match(notification, /Inclusive total: \$1\.60/);
+});
+
+test("Taskflow trace counts attempts and recomputes once while repeated run results are deduplicated", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const rootFile = path.join(cwd, "root.jsonl");
+	const rootRun = "flow-mtroot-111111";
+	const resumeRun = "flow-mtchild-222222";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: path.join(cwd, "session-cwd-does-not-own-run"),
+		extra: [
+			toolResult("taskflow", `Taskflow completed. Run id: ${rootRun}`, { state: { runId: rootRun, cwd } }),
+			toolResult("taskflow", `Trace queried. Run id: ${rootRun}`, { state: { runId: rootRun, cwd } }),
+			toolResult("taskflow", `Resumed taskflow as run ${resumeRun}. Run id: ${resumeRun}`, { state: { runId: resumeRun, cwd } }),
+		],
+	});
+	writeTaskflowRun(cwd, rootRun, "flow", {
+		createdAt: 100,
+		phases: { phase: { status: "done", usage: { cost: 99 } } },
+		trace: [
+			traceCall(rootRun, "phase", 0, 0.2),
+			traceCall(rootRun, "phase", 1, 0.3),
+			{ ts: 3, runId: rootRun, phaseId: "phase", kind: "decision", decision: { type: "cache-hit" } },
+			traceCall(rootRun, "phase", 0, 0.1),
+		],
+	});
+	writeTaskflowRun(cwd, resumeRun, "flow", {
+		parentRunId: rootRun,
+		createdAt: 1_000,
+		phases: { copied: { status: "done", endedAt: 500, usage: { cost: 99 } } },
+		trace: [traceCall(resumeRun, "new", 0, 0.4)],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Taskflow runs \(2\): \$1\.00/);
+	assert.match(notification, /Inclusive total: \$2\.00/);
+});
+
+test("Taskflow snapshot fallback excludes inherited and cached phases", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const rootFile = path.join(cwd, "root.jsonl");
+	const runId = "flow-mtfallback-333333";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: path.join(cwd, "session-cwd-does-not-own-run"),
+		extra: [toolResult("taskflow", `Resumed. Run id: ${runId}`, { state: { runId, cwd } })],
+	});
+	writeTaskflowRun(cwd, runId, "flow", {
+		parentRunId: "older-run",
+		createdAt: 1_000,
+		phases: {
+			inherited: { status: "done", startedAt: 100, endedAt: 500, usage: { cost: 8 } },
+			cached: { status: "done", startedAt: 1_100, endedAt: 1_200, cacheHit: "cross-run", usage: { cost: 7 } },
+			fresh: { status: "done", startedAt: 1_100, endedAt: 1_200, model: "model", usage: { cost: 0.25 } },
+		},
+		trace: [{ ts: 1, runId, phaseId: "fresh", kind: "subagent-call", output: { usage: {} } }],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Taskflow runs \(1\): \$0\.25/);
+	assert.match(notification, /Inclusive total: \$1\.25/);
+});
+
+function temporaryDirectory(t: { after: (callback: () => void) => void }): string {
+	const directory = fs.mkdtempSync(path.join(os.tmpdir(), "pi-inclusive-cost-"));
+	t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+	return directory;
+}
+
+async function invokeCost(rootFile: string): Promise<string> {
+	let costCommand: ((args: string, ctx: unknown) => Promise<void>) | undefined;
+	inclusiveCost({
+		on: () => {},
+		registerCommand: (name: string, command: { handler: typeof costCommand }) => {
+			if (name === "cost") costCommand = command.handler;
+		},
+	} as never);
+	assert.ok(costCommand);
+	let notification = "";
+	await costCommand("", {
+		sessionManager: { getSessionFile: () => rootFile },
+		ui: {
+			notify: (message: string) => { notification = message; },
+			setStatus: () => {},
+		},
+	});
+	return notification;
+}
+
+function writeSession(file: string, options: {
+	id: string;
+	cwd: string;
+	cost: number;
+	parentSession?: string;
+	extra?: unknown[];
+}): void {
+	fs.mkdirSync(path.dirname(file), { recursive: true });
+	const header = {
+		type: "session",
+		version: 3,
+		id: options.id,
+		timestamp: "2026-01-01T00:00:00.000Z",
+		cwd: options.cwd,
+		...(options.parentSession ? { parentSession: options.parentSession } : {}),
+	};
+	const assistant = {
+		type: "message",
+		message: { role: "assistant", usage: { cost: { total: options.cost } } },
+	};
+	const entries = [header, assistant, ...(options.extra ?? [])];
+	fs.writeFileSync(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+}
+
+function toolResult(toolName: string, text: string, details?: unknown): unknown {
+	return {
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolName,
+			content: [{ type: "text", text }],
+			...(details === undefined ? {} : { details }),
+		},
+	};
+}
+
+function fabricAgentAudit(id: string, cost: number): Record<string, unknown> {
+	return {
+		ref: "agents.run",
+		tool: "run",
+		provider: "agents",
+		success: true,
+		result: {
+			id,
+			name: "reviewer",
+			task: "Review the change",
+			status: "completed",
+			runner: "pi",
+			cwd: "/project",
+			usage: { input: 10, output: 5, cost },
+		},
+	};
+}
+
+function fabricNestedBusinessAudit(id: string, cost: number): Record<string, unknown> {
+	return {
+		ref: "agents.run",
+		tool: "run",
+		provider: "agents",
+		success: true,
+		result: {
+			metadata: {
+				id,
+				name: "not-an-agent-result",
+				task: "business data",
+				status: "completed",
+				runner: "pi",
+				cwd: "/project",
+				usage: { cost },
+			},
+		},
+	};
+}
+
+function traceCall(runId: string, phaseId: string, attempt: number, cost: number): unknown {
+	return {
+		ts: attempt + 1,
+		runId,
+		phaseId,
+		kind: "subagent-call",
+		input: { attempt },
+		output: { usage: { cost } },
+	};
+}
+
+function writeTaskflowRun(cwd: string, runId: string, flowName: string, options: {
+	parentRunId?: string;
+	createdAt: number;
+	phases: Record<string, unknown>;
+	trace: unknown[];
+}): void {
+	const runsRoot = path.join(cwd, ".pi", "taskflows", "runs");
+	const flowDir = path.join(runsRoot, flowName);
+	fs.mkdirSync(flowDir, { recursive: true });
+	const relPath = `${flowName}/${runId}.json`;
+	const indexFile = path.join(runsRoot, "index.json");
+	let index: unknown[] = [];
+	if (fs.existsSync(indexFile)) index = JSON.parse(fs.readFileSync(indexFile, "utf8"));
+	index.push({ runId, flowName, cwd, relPath, ...(options.parentRunId ? { parentRunId: options.parentRunId } : {}) });
+	fs.writeFileSync(indexFile, JSON.stringify(index, null, 2));
+	fs.writeFileSync(path.join(runsRoot, relPath), JSON.stringify({
+		runId,
+		flowName,
+		cwd,
+		createdAt: options.createdAt,
+		phases: options.phases,
+		...(options.parentRunId ? { parentRunId: options.parentRunId } : {}),
+	}, null, 2));
+	const traceFile = path.join(flowDir, `${runId}.trace.jsonl`);
+	fs.writeFileSync(traceFile, options.trace.length > 0
+		? `${options.trace.map((entry) => JSON.stringify(entry)).join("\n")}\n`
+		: "");
+}

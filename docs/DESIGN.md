@@ -1,0 +1,111 @@
+# Design
+
+## Purpose
+
+`pi-inclusive-cost` reports the cost attributable to the current persisted Pi chat, including work delegated through supported orchestration extensions. It is deliberately session-scoped: sharing a working directory is not evidence that two runs belong to the same chat.
+
+The collector reads existing `usage.cost.total` or an orchestration system's persisted `usage.cost`. It does not derive prices from token counts.
+
+## Invariants
+
+1. **Stable attribution is required.** A contribution is included only when a persisted record in the current chat identifies the child session or run.
+2. **One paid model call contributes at most once.** Repeated status queries, repeated tool results, resume metadata, and cache hits do not create spend.
+3. **Actual attempts remain distinct.** Retries, loop iterations, tournament candidates, and recomputations are counted when they produced separate usage-bearing calls.
+4. **Authoritative sources and fallbacks are mutually exclusive.** A fallback is used only when the authoritative source for that run is unavailable.
+5. **Totals are rebuilt from disk.** Every refresh reconstructs a contribution map instead of incrementing an in-memory counter.
+6. **Unknown attribution is omitted.** It is preferable to under-count than to charge unrelated chats from the same workspace.
+
+## Contribution model
+
+Collectors produce keyed contributions:
+
+```text
+pi-session:<absolute-session-path>
+fabric:<run-id>
+taskflow:<run-id>:<trace-line>
+taskflow-fallback:<execution-fingerprint>
+```
+
+A key is inserted once into the aggregate map. Collector-specific rules decide which persisted records represent paid calls.
+
+## Supported systems
+
+Dedicated package integration is limited to `@gotgenes/pi-subagents`. `@tintinweb/pi-subagents` is out of scope: this collector does not parse its private artifacts or reconstruct its parent-usage reporting.
+
+### Standard Pi and legacy subagent sessions
+
+A Pi session is a JSONL file whose first record has `type: "session"`. Assistant messages contribute their recorded `message.usage.cost.total`.
+
+The current root session discovers descendants through:
+
+- `<session-stem>/**/session.jsonl` for legacy nested workers;
+- `<session-stem>/**/tasks/*.jsonl` for `@gotgenes/pi-subagents`;
+- top-level sibling session files whose header `parentSession` points to the current parent file.
+
+Discovery runs to a fixed point. Absolute file paths are the deduplication identity.
+
+### `@gotgenes/pi-subagents`
+
+Current releases persist children in Pi's standard format under:
+
+```text
+<parent-session-stem>/tasks/*.jsonl
+```
+
+The child header records the parent session ID. Directory containment supplies the stable parent-file association; the header confirms that the file is a Pi session. Nested delegation creates another child session tree and is found by fixed-point discovery.
+
+The installed fork accumulates token usage for its own UI but does not currently copy a priced usage object into the parent tool result. The `tasks/*.jsonl` child session is therefore the dedicated compatibility source implemented by this extension.
+
+
+### Pi Fabric
+
+A persisted `fabric_exec` tool result can contain one or more Fabric run records. Fabric may render those records in `content`, or retain them only in successful `details.audits[]` entries for `agents.run`. Each record exposes a stable `id` and cumulative `usage.cost`; only the direct attributable audit result is parsed. The collector uses:
+
+```text
+fabric:<run-id>
+```
+
+Repeated results for the same run are collapsed, retaining the greatest observed cumulative cost. Agent names and timestamps are not identities.
+
+Fabric can additionally export Pi-compatible usage sessions under:
+
+```text
+<agent-dir>/sessions/.fabric/<encoded-cwd>/<timestamp>_<run-id>.jsonl
+```
+
+The export repeats the same usage and is therefore only a fallback when the attributable tool-result record identifies the run but omits usable cost. A standalone `.fabric` file is never included merely because its `cwd` matches: its content does not identify the parent chat. Alternate export roots may be undiscoverable and are an accepted limitation.
+
+### Pi Taskflow
+
+A persisted `taskflow` tool result exposes `details.state.runId`; human-readable results also contain `Run id: ...`. Only run IDs found in tool results belonging to the root or an attributable descendant session are collected.
+
+Taskflow stores project-local records at:
+
+```text
+<cwd>/.pi/taskflows/runs/index.json
+<cwd>/.pi/taskflows/runs/<flow-name>/<run-id>.json
+<cwd>/.pi/taskflows/runs/<flow-name>/<run-id>.trace.jsonl
+```
+
+The append-only trace is authoritative. Every `subagent-call` event contains the usage for one actual runner attempt. The collector sums `output.usage.cost` once per trace line:
+
+- repeated status/trace queries return the same run ID and add nothing;
+- retries and loop/tournament calls are counted from their usage-bearing events; a runner may emit separate attempt events or one event whose usage already aggregates its retries;
+- cache hits have no paid `subagent-call` and add nothing;
+- resume creates a child run whose trace contains only newly executed calls, so copied phase state is not charged again;
+- recompute appends new `subagent-call` events to the same run trace, so its new attempts are counted.
+
+For an older run with no usable trace, the run snapshot is a fallback. The collector sums non-cache phase usage, excludes phase executions that predate a resumed child run, and fingerprints execution timestamps to avoid charging copied phase state twice. This fallback cannot reconstruct overwritten historical recompute usage and may under-count old runs.
+
+## Refresh and presentation
+
+Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The statusline shows the inclusive total only when at least one attributed delegated contribution exists. `/cost` reports direct Pi-session cost and collector-specific delegated totals.
+
+## Known limitations
+
+- Unpersisted/headless children without a stable parent link are not counted.
+- Artifacts-only subagent transcripts are not counted.
+- Fabric calls whose persisted rendered output and structured audit details both hide every run ID cannot be associated with the chat.
+- Fabric exports redirected outside the standard agent session tree are not discovered automatically.
+- Old Taskflow snapshots without traces cannot preserve every historical recompute attempt.
+- Parent tool-result usage without a stable child/run identity is ignored to avoid double-counting.

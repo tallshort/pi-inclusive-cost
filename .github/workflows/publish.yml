@@ -21,6 +21,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
+      - run: pnpm test
       - name: Verify tag matches package version
         run: |
           version=$(node -p "require('./package.json').version")

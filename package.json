@@ -30,6 +30,7 @@
   "files": [
     "inclusive-cost.ts",
     "README.md",
+    "docs/DESIGN.md",
     "LICENSE"
   ],
   "peerDependencies": {
@@ -41,7 +42,8 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "rm -rf .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/inclusive-cost.test.js"
   },
   "engines": {
     "node": ">=18"
