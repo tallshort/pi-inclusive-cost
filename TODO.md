@@ -30,7 +30,7 @@ These collectors are needed because the audited package versions expose attribut
   - Deduplicate spawn, result, and repeated status/query records by `runId`.
   - Add regression coverage for unrelated temporary sessions, repeated queries, missing sessions, and completed runs.
 
-- [ ] Add an `@bacnh85/pi-subagent` tool-result collector.
+- [x] Add an `@bacnh85/pi-subagent` tool-result collector.
   - Use the parent `toolCallId` retained by the shared attributed-tool-result infrastructure for foreground identity.
   - Read foreground costs from `details.results[].usage.cost`, keyed by parent `toolCallId` plus result index.
   - Read background completion costs from the completion result's `task_id` and `usage.cost`, keyed by `task_id`.
@@ -40,9 +40,8 @@ These collectors are needed because the audited package versions expose attribut
 
 ## Suggested implementation order
 
-1. `@bacnh85/pi-subagent`.
-2. `@ferris1225/pi-subagents`.
-3. `pi-better-subagents`.
+1. `@ferris1225/pi-subagents`.
+2. `pi-better-subagents`.
 
 ## Upstream prerequisite
 

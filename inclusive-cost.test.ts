@@ -100,6 +100,78 @@ test("j0k3r does not recollect tasks already reported through parent tool usage"
 	assert.match(notification, /Delegated sessions\/runs folded in: 0/);
 });
 
+test("bacnh85 scopes foreground result identities to their parent sessions", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "parallel", bacnh85Details([
+				bacnh85Result("reviewer", 0.2),
+				bacnh85Result("tester", 0.3),
+			]), undefined, "call-1"),
+			toolResult("subagent", "repeated", bacnh85Details([
+				bacnh85Result("reviewer", 0.25),
+				bacnh85Result("tester", 0.3),
+			]), undefined, "call-1"),
+			toolResult("subagent", "single", bacnh85Details([
+				bacnh85Result("reviewer", 0.4),
+			]), undefined, "call-2"),
+			toolResult("subagent", "reported", bacnh85Details([
+				bacnh85Result("reviewer", 0.5),
+			]), 0.5, "call-3"),
+			toolResult("subagent", "other package", { results: [{ usage: { cost: 50 } }] }, undefined, "call-4"),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [toolResult("subagent", "same tool id in child session", bacnh85Details([
+			bacnh85Result("reviewer", 0.1),
+		]), undefined, "call-1")],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.05/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 5/);
+});
+
+test("bacnh85 deduplicates background task IDs within each parent session", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const nestedFile = path.join(sessionDir, "root", "worker", "session.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent", "launched", bacnh85Details([], "bg-one"), undefined, "call-bg"),
+			customMessage("pi-subagent-complete", { task_id: "bg-one", usage: { cost: 0.6 }, background: true }),
+			customMessage("pi-subagent-complete", { task_id: "bg-one", usage: { cost: 0.7 }, background: true }),
+			customMessage("pi-subagent-complete", { task_id: "bg-no-usage", background: true }),
+			customMessage("other-extension", { task_id: "bg-other", usage: { cost: 50 }, background: true }),
+		],
+	});
+	writeSession(nestedFile, {
+		id: "nested-id",
+		cost: 0,
+		cwd: sessionDir,
+		extra: [customMessage("pi-subagent-complete", {
+			task_id: "bg-one",
+			usage: { cost: 0.2 },
+			background: true,
+		})],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.90/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -396,17 +468,51 @@ function j0k3rTask(
 	};
 }
 
+function bacnh85Result(agent: string, cost: number): Record<string, unknown> {
+	return {
+		agent,
+		task: "Work",
+		exitCode: 0,
+		messages: [],
+		stderr: "",
+		usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, contextTokens: 2, turns: 1 },
+		status: "completed",
+	};
+}
+
+function bacnh85Details(results: unknown[], backgroundTaskId?: string): Record<string, unknown> {
+	return {
+		mode: results.length > 1 ? "parallel" : "single",
+		agentScope: "user",
+		projectAgentsDir: null,
+		results,
+		...(backgroundTaskId === undefined ? {} : { backgroundTaskId }),
+	};
+}
+
+function customMessage(customType: string, details: unknown): unknown {
+	return {
+		type: "custom_message",
+		customType,
+		content: "completed",
+		display: true,
+		details,
+	};
+}
+
 function toolResult(
 	toolName: string,
 	text: string,
 	details?: unknown,
 	reportedUsageCost?: number,
+	toolCallId?: string,
 ): unknown {
 	return {
 		type: "message",
 		message: {
 			role: "toolResult",
 			toolName,
+			...(toolCallId === undefined ? {} : { toolCallId }),
 			content: [{ type: "text", text }],
 			...(details === undefined ? {} : { details }),
 			...(reportedUsageCost === undefined ? {} : { usage: { cost: { total: reportedUsageCost } } }),

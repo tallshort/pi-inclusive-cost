@@ -21,7 +21,9 @@ Collectors produce keyed contributions:
 
 ```text
 pi-session:<absolute-session-path>
-j0k3r:<task-id>:<attempt>
+bacnh85:<parent-session-path>:<tool-call-id>:<result-index>
+bacnh85-background:<parent-session-path>:<task-id>
+j0k3r:<parent-session-path>:<task-id>:<attempt>
 j0k3r-session:<absolute-session-path>
 fabric:<run-id>
 taskflow:<run-id>:<trace-line>
@@ -35,7 +37,8 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Collector | Authoritative source | Contribution identity |
 | --- | --- | --- |
 | Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
-| `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | `j0k3r:<task-id>:<attempt>` |
+| `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
+| `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
 | Pi Fabric | Attributed run records returned by `fabric_exec` | `fabric:<run-id>` |
 | Pi Taskflow | Usage-bearing events in an attributed run trace | `taskflow:<run-id>:<trace-line>` |
 
@@ -47,6 +50,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
 | `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
+| `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | Parent tool calls identify foreground results; completion messages identify background tasks |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results identify task attempts and their usage; explicit standard sessions are fallback only |
 | Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
@@ -56,7 +60,8 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 ## Module layout
 
 - `inclusive-cost.ts` owns Pi event/command registration, invokes the collectors, combines their summaries, and renders the UI.
-- `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results.
+- `collectors/pi-sessions.ts` owns Standard Pi Session discovery, validation, cost summation, and extraction of attributed parent tool results and custom messages.
+- `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
 - `collectors/j0k3r.ts` owns j0k3r task-result attribution, attempt deduplication, and explicit-session fallback.
 - `collectors/taskflow.ts` owns Taskflow run lookup, trace accounting, and snapshot fallback.
@@ -94,9 +99,15 @@ The child header records the parent session ID. Directory containment supplies t
 
 The installed fork accumulates token usage for its own UI but does not currently copy a priced usage object into the parent tool result. The `tasks/*.jsonl` child session is therefore the dedicated compatibility source implemented by this extension.
 
+### `@bacnh85/pi-subagent`
+
+Default SDK children use in-memory sessions. Foreground costs come from the parent `subagent` tool result's `details.results[].usage.cost`, keyed by parent Session path, `toolCallId`, and result index. Repeated observations retain the greatest cost; results already covered by parent tool-result usage and Herdr results are omitted.
+
+Background launch receipts carry no cost. Completion records are persisted as `pi-subagent-complete` custom messages; their parent Session path, `task_id`, and `usage.cost` form one deduplicated contribution.
+
 ### `pi-subagents-j0k3r`
 
-Persisted `subagent_run`, `subagent_continue`, status, result, list, and cancel tool results can expose tasks under `details.task`, `details.tasks[]`, or `details.results[]`. Inline `usage.cost` is authoritative. Repeated observations of the same `task.id` and attempt retain the greatest cost, while continuation attempts remain separate contributions. Tasks already covered by parent tool-result usage are omitted.
+Persisted `subagent_run`, `subagent_continue`, status, result, list, and cancel tool results can expose tasks under `details.task`, `details.tasks[]`, or `details.results[]`. Inline `usage.cost` is authoritative. Repeated observations of the same parent Session, `task.id`, and attempt retain the greatest cost, while continuation attempts remain separate contributions. Tasks already covered by parent tool-result usage are omitted.
 
 When no inline usage was persisted for a task, an explicitly returned `nested_session_path` may supply a standard Pi Session fallback. The path must identify a valid Session JSONL; conflicting paths are omitted, and the collector never scans the package's global history directory.
 
@@ -146,7 +157,6 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 | --- | --- | --- |
 | `@ferris1225/pi-subagents` | Planned | Standard sessions live in a separate project directory; parent results expose stable run and session references |
 | `pi-better-subagents` | Planned | Standard sessions live in a separate temporary tree without a parent header; spawn results expose a stable `runId` |
-| `@bacnh85/pi-subagent` | Planned | Default sessions are in-memory, but foreground/background parent results expose attributed usage and stable call/task identities |
 | `@esso0428/pi-subagents` | Blocked | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
 | `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |
