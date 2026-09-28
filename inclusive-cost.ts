@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { collectFabric } from "./collectors/fabric.js";
+import { collectJ0k3r } from "./collectors/j0k3r.js";
 import { collectPiSessions } from "./collectors/pi-sessions.js";
 import { collectTaskflow } from "./collectors/taskflow.js";
 
@@ -57,10 +58,11 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 
 	const sessions = collectPiSessions(rootFile);
 	const fabric = collectFabric(rootFile, sessions.toolResults);
+	const j0k3r = collectJ0k3r(sessions.toolResults);
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		inclusive: sessions.directCost + sessions.delegatedCost + fabric.cost + taskflow.cost,
-		foldedCount: sessions.delegatedCount + fabric.count + taskflow.count,
+		inclusive: sessions.directCost + sessions.delegatedCost + fabric.cost + j0k3r.cost + taskflow.cost,
+		foldedCount: sessions.delegatedCount + fabric.count + j0k3r.count + taskflow.count,
 	};
 }

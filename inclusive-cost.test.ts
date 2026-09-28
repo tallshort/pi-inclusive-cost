@@ -21,6 +21,85 @@ test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t)
 	].join("\n"));
 });
 
+test("j0k3r tool results use greatest per-attempt cost and keep continuations distinct", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	const ignoredFallback = path.join(sessionDir, "external", "child.jsonl");
+	const taskId = "subtask_review_1000_a1b2c3d4";
+	writeSession(ignoredFallback, { id: "child-id", cost: 99, cwd: sessionDir });
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [
+			toolResult("subagent_run", "started", { tasks: [j0k3rTask(taskId, 1, 0.2, ignoredFallback)] }),
+			toolResult("subagent_status", "running", { task: j0k3rTask(taskId, 1, 0.35, ignoredFallback) }),
+			toolResult("subagent_result", "done", { task: j0k3rTask(taskId, 1, 0.3, ignoredFallback) }),
+			toolResult("subagent_continue", "continued", { results: [j0k3rTask(taskId, 2, 0.4, ignoredFallback)] }),
+			toolResult("unrelated", "ignored", { tasks: [j0k3rTask("subtask_fake_1_deadbeef", 1, 50)] }),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.75/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+});
+
+test("j0k3r falls back only to an explicitly referenced standard Pi session", async (t) => {
+	const root = temporaryDirectory(t);
+	const rootFile = path.join(root, "root.jsonl");
+	const referencedSession = path.join(root, "external", "referenced.jsonl");
+	const unrelatedSession = path.join(root, "external", "unrelated.jsonl");
+	const invalidSession = path.join(root, "external", "invalid.jsonl");
+	writeSession(referencedSession, { id: "child-id", cost: 0.6, cwd: root });
+	writeSession(unrelatedSession, { id: "unrelated-id", cost: 9, cwd: root });
+	fs.writeFileSync(invalidSession, `${JSON.stringify({
+		type: "message",
+		message: { role: "assistant", usage: { cost: { total: 50 } } },
+	})}\n`);
+	const task = {
+		...j0k3rTask("subtask_research_2000_abcdef12", 1),
+		nested_session_path: referencedSession,
+	};
+	const invalidTask = {
+		...j0k3rTask("subtask_invalid_2000_12345678", 1),
+		nested_session_path: invalidSession,
+	};
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: root,
+		extra: [
+			toolResult("subagent_run", "started", { tasks: [task, invalidTask] }),
+			toolResult("subagent_status", "done", { tasks: [task, invalidTask] }),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
+test("j0k3r does not recollect tasks already reported through parent tool usage", async (t) => {
+	const sessionDir = temporaryDirectory(t);
+	const rootFile = path.join(sessionDir, "root.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: sessionDir,
+		extra: [toolResult(
+			"subagent_run",
+			"done",
+			{ results: [j0k3rTask("subtask_reported_3000_1234abcd", 1, 0.5)] },
+			0.5,
+		)],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 0/);
+});
+
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -298,7 +377,31 @@ function writeSession(file: string, options: {
 	fs.writeFileSync(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
 }
 
-function toolResult(toolName: string, text: string, details?: unknown): unknown {
+function j0k3rTask(
+	id: string,
+	attempt: number,
+	cost?: number,
+	nestedSessionPath?: string,
+): Record<string, unknown> {
+	return {
+		id,
+		agent: "reviewer",
+		mode: "task",
+		status: "completed",
+		task: "Review",
+		created_at: "2026-01-01T00:00:00.000Z",
+		attempt,
+		...(cost === undefined ? {} : { usage: { cost } }),
+		...(nestedSessionPath === undefined ? {} : { nested_session_path: nestedSessionPath }),
+	};
+}
+
+function toolResult(
+	toolName: string,
+	text: string,
+	details?: unknown,
+	reportedUsageCost?: number,
+): unknown {
 	return {
 		type: "message",
 		message: {
@@ -306,6 +409,7 @@ function toolResult(toolName: string, text: string, details?: unknown): unknown 
 			toolName,
 			content: [{ type: "text", text }],
 			...(details === undefined ? {} : { details }),
+			...(reportedUsageCost === undefined ? {} : { usage: { cost: { total: reportedUsageCost } } }),
 		},
 	};
 }

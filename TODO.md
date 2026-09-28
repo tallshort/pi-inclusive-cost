@@ -4,12 +4,12 @@
 
 These collectors are needed because the audited package versions expose attributable child costs but do not report them through parent Pi tool-result usage.
 
-- [ ] Add shared attributed-collector infrastructure.
+- [x] Add shared attributed-collector infrastructure.
   - Retain the parent `toolCallId` on attributed tool-result records so collectors can build stable per-call identities.
   - Expose one reusable helper for summing an explicitly referenced Standard Pi session JSONL without broad directory scanning.
   - Share keyed-contribution insertion and greatest-cumulative-cost deduplication where collector semantics match.
   - Keep package-specific discovery and attribution rules inside each collector.
-- [ ] Add a `pi-subagents-j0k3r` collector.
+- [x] Add a `pi-subagents-j0k3r` collector.
   - Discover only runs referenced by the current chat's persisted tool results.
   - Treat `details.tasks[].usage.cost` as the authoritative source.
   - Deduplicate repeated task/status results by stable task identity and retain the greatest cumulative cost.
@@ -40,11 +40,9 @@ These collectors are needed because the audited package versions expose attribut
 
 ## Suggested implementation order
 
-1. Shared attributed-collector infrastructure.
-2. `pi-subagents-j0k3r`.
-3. `@bacnh85/pi-subagent`.
-4. `@ferris1225/pi-subagents`.
-5. `pi-better-subagents`.
+1. `@bacnh85/pi-subagent`.
+2. `@ferris1225/pi-subagents`.
+3. `pi-better-subagents`.
 
 ## Upstream prerequisite
 
