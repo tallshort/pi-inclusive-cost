@@ -43,6 +43,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Legacy `pi-subagents` full-session modes | Standard Pi sessions | Standard nested or parent-linked child sessions |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; uses its own `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native runs retain the same nested-session mechanism |
+| `oira666_pi-subagent` | Standard Pi sessions | Standard RPC sessions are nested below the parent session stem |
 | Pi Fabric | Pi Fabric | Parent tool results identify runs; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
 
@@ -73,6 +74,8 @@ The current root session discovers descendants through:
 Discovery runs to a fixed point. Absolute file paths are the deduplication identity.
 
 Persisted native children from the `@xzzpig/pi-subagents` fork use `<session-stem>/run-*/session.jsonl` and are therefore covered by the generic nested-session collector without a package-specific collector. Runs configured without a persistent child session remain out of scope.
+
+`oira666_pi-subagent` persists standard sessions under `<session-stem>/subagents/<parent-session-id>/<tool-call-id>/<index>/session.jsonl`. Directory containment makes them attributable, so the same generic nested-session collector covers them without relying on a child `parentSession` header.
 
 ### `@gotgenes/pi-subagents`
 
@@ -133,6 +136,8 @@ For an older run with no usable trace, the run snapshot is a fallback. The colle
 | --- | --- | --- |
 | `pi-subagents-j0k3r` | Planned | Standard sessions live in a global directory without a child header link; parent tool results expose attributable task usage |
 | `@ferris1225/pi-subagents` | Planned | Standard sessions live in a separate project directory; parent results expose stable run and session references |
+| `pi-better-subagents` | Planned | Standard sessions live in a separate temporary tree without a parent header; spawn results expose a stable `runId` |
+| `@bacnh85/pi-subagent` | Planned | Default sessions are in-memory, but foreground/background parent results expose attributed usage and stable call/task identities |
 | `@esso0428/pi-subagents` | Blocked | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Blocked | Uses `--no-session` and does not return child usage/cost |
 | `wj-pi-subagents` | Blocked | Uses `--no-session`; runtime child replies contain no usage/cost |

@@ -35,6 +35,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Legacy `pi-subagents` full-session modes | Standard Pi sessions | Uses nested `session.jsonl` or parent-linked sibling sessions |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
+| `oira666_pi-subagent` | Standard Pi sessions | Persisted RPC children use nested `subagents/.../session.jsonl` files under the parent session stem |
 | Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
 | Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
 
@@ -70,6 +71,8 @@ Restart Pi, or run `/reload`.
 | --- | --- |
 | `pi-subagents-j0k3r` | Stores standard sessions outside the parent tree without a `parentSession` header; a parent-tool-result collector is planned |
 | `@ferris1225/pi-subagents` | Stores sessions in a separate project directory; a collector based on its returned `runId`/session reference is planned |
+| `pi-better-subagents` | Stores standard sessions in a separate temporary tree without `parentSession`; a collector keyed by the returned `runId` is planned |
+| `@bacnh85/pi-subagent` | Defaults to in-memory sessions; a collector for attributed foreground/background tool-result usage is planned |
 | `@esso0428/pi-subagents` | Defaults to in-memory children and custom `.output` transcripts without attributable priced usage |
 | `@narumitw/pi-subagents` | Starts children with `--no-session` and does not return usage/cost |
 | `wj-pi-subagents` | Starts children with `--no-session`; child replies contain text but no usage/cost |
