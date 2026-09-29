@@ -580,7 +580,7 @@ test("minimal-subagents counts authoritative settled turns once", async (t) => {
 		cwd: sessionDir,
 		extra: [
 			minimalRegistryEntry("root-id", "agent-created", {
-				agent: minimalRegistryAgent("root.reviewer"),
+				agent: minimalRegistryAgent("root.reviewer", { task: "" }),
 			}),
 			minimalRegistryEntry("root-id", "turn-started", {
 				agent_id: "root.reviewer",
@@ -611,8 +611,35 @@ test("minimal-subagents counts authoritative settled turns once", async (t) => {
 				agent_id: "root.reviewer",
 				turn_id: secondTurn.turn_id,
 				started_at: "2026-01-01T00:00:03.000Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", { result: secondTurn }),
+			minimalRegistryEntry("root-id", "agent-created", {
+				agent: minimalRegistryAgent("root.legacy"),
 			}, 1),
-			minimalRegistryEntry("root-id", "turn-settled", { result: secondTurn }, 1),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.legacy",
+				turn_id: "root.legacy:turn-1",
+				started_at: "2026-01-01T00:00:03.500Z",
+			}, 1),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.legacy", "root.legacy:turn-1", 50),
+			}, 1),
+			minimalRegistryEntry("root-id", "checkpoint", {
+				snapshot: {
+					agents: [minimalRegistryAgent("root.legacy-checkpoint", {
+						active_turn_id: "root.legacy-checkpoint:turn-1",
+						active_turn_started_at: "2026-01-01T00:00:03.750Z",
+					})],
+					tombstones: [],
+					deliveries: [],
+					coordination_deliveries: [],
+					wait_claimed_turns: [],
+					next_delivery_sequence: 1,
+				},
+			}, 1),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.legacy-checkpoint", "root.legacy-checkpoint:turn-1", 50),
+			}),
 			minimalRegistryEntry("root-id", "delivery-pending", {
 				delivery: {
 					source_agent_id: "root.reviewer",
@@ -644,6 +671,62 @@ test("minimal-subagents counts authoritative settled turns once", async (t) => {
 					wait_claimed_turns: [],
 					next_delivery_sequence: 1,
 				},
+			}),
+			minimalRegistryEntry("root-id", "checkpoint", {
+				snapshot: {
+					agents: [
+						minimalRegistryAgent("root.reviewer", {
+							active_turn_id: "root.reviewer:checkpoint-turn",
+							active_turn_started_at: "2026-01-01T00:00:04.500Z",
+							latest_result: minimalTurnResult("root.reviewer", "root.reviewer:prior-turn", 0.1),
+						}),
+						minimalRegistryAgent("root.reviewer.worker", { parent_id: "root.reviewer" }),
+					],
+					tombstones: [],
+					deliveries: [{
+						source_agent_id: "root.reviewer",
+						source_turn_id: "root.reviewer:prior-turn",
+						destination_agent_id: "root",
+						path: "wait",
+						settled: false,
+						sequence: 1,
+						result: minimalTurnResult("root.reviewer", "root.reviewer:prior-turn", 0.1),
+					}],
+					coordination_deliveries: [{
+						delivery_id: "message:coord-1",
+						destination_agent_id: "root.reviewer",
+						path: "message",
+						settled: false,
+						sequence: 2,
+						message: {
+							customType: "minimal-subagents.message",
+							content: "coordinate",
+							details: {
+								source_agent_id: "root",
+								source_turn_id: "root:coordination-1",
+								message_id: "coord-1",
+								delivery_id: "message:coord-1",
+								destination_agent_id: "root.reviewer",
+							},
+						},
+					}],
+					wait_claimed_turns: ["root.reviewer\0root.reviewer:prior-turn"],
+					next_delivery_sequence: 3,
+				},
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.reviewer", "root.reviewer:checkpoint-turn", 0.5),
+			}),
+			minimalRegistryEntry("root-id", "agent-deleted", {
+				agent_ids: ["root.reviewer.worker", "root.reviewer"],
+			}),
+			minimalRegistryEntry("root-id", "turn-started", {
+				agent_id: "root.reviewer",
+				turn_id: "root.reviewer:after-delete",
+				started_at: "2026-01-01T00:00:04.750Z",
+			}),
+			minimalRegistryEntry("root-id", "turn-settled", {
+				result: minimalTurnResult("root.reviewer", "root.reviewer:after-delete", 50),
 			}),
 			minimalRegistryEntry("root-id", "turn-settled", {
 				result: minimalTurnResult("root.fork", "root.fork:turn-1", 50),
@@ -693,7 +776,7 @@ test("minimal-subagents counts authoritative settled turns once", async (t) => {
 	});
 
 	const notification = await invokeCost(rootFile);
-	assertCostSummary(notification, 1.70, 2);
+	assertCostSummary(notification, 2.20, 3);
 });
 
 test("minimal-subagents ignores missing registry usage and child session totals", async (t) => {

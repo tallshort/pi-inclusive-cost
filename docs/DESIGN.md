@@ -48,7 +48,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | Standard Pi sessions | Attributed Session JSONL assistant messages | `pi-session:<absolute-session-path>` |
 | `@pi-archimedes/subagent` | Synchronous result usage in parent `subagent` tool results | Child Session ID, or parent Session/tool-call/result identity |
 | `pi-subagents-lite` | Foreground `Agent` tool results and background completion custom messages | Parent Session/tool-call or attributed agent identity |
-| `@ian-pascoe/pi-minimal-subagents` | Root Session registry v1/v2 `turn-settled.result.usage.cost.total` | Root Session ID + agent ID + turn ID |
+| `@ian-pascoe/pi-minimal-subagents` | Root Session Registry V2 `turn-settled.result.usage.cost.total` | Root Session ID + agent ID + turn ID |
 | `pi-better-subagents` | Strictly attributed launch receipt plus retained sandboxed per-run standard child Session usage | Run ID |
 | Explicit Herdr child Sessions | Attributed launch/result records with an absolute standard child Session path | Canonical child Session path |
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
@@ -147,7 +147,7 @@ Completion messages without a matching background launch are omitted, which also
 
 ### `@ian-pascoe/pi-minimal-subagents`
 
-Version 0.9.0 persists append-only `minimal-subagents.registry` custom entries in the root Session. Registry versions 1 and 2 expose authoritative terminal model usage through `event: "turn-settled"` and `result.usage.cost.total`. Contributions use the owning root Session ID, `result.agent_id`, and `result.turn_id`; repeated observations retain the greatest cost, and a valid zero-cost turn remains countable.
+Registry V2, written by `@ian-pascoe/pi-minimal-subagents` since version 0.2.0 and by the current 0.9.0 release, persists append-only `minimal-subagents.registry` custom entries in the root Session. V2 exposes authoritative terminal model usage through `event: "turn-settled"` and `result.usage.cost.total`. Contributions use the owning root Session ID, `result.agent_id`, and `result.turn_id`; repeated observations retain the greatest cost, and a valid zero-cost turn remains countable. Legacy Registry V1 records are intentionally ignored.
 
 Checkpoint `latest_result`, delivery-ledger results, coordinator custom messages, foreign-root records, and non-terminal events are not additional paid calls and are ignored. A persisted child `session_file` can contain imported history, multiple turns, or fork-cloned history without a durable per-turn usage boundary. The collector therefore does not sum child Session files when registry usage is missing, because doing so could duplicate or misattribute cost.
 
@@ -255,7 +255,7 @@ Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The st
 - Fabric exports redirected outside the standard agent session tree are not discovered automatically.
 - Old Taskflow snapshots without traces cannot preserve every historical recompute attempt.
 - Parent tool-result usage without a stable child/run identity is ignored to avoid double-counting.
-- minimal-subagents turns without persisted registry usage are omitted; whole child Session totals are not a safe per-turn fallback.
+- minimal-subagents Registry V1 turns and turns without persisted V2 registry usage are omitted; whole child Session totals are not a safe per-turn fallback.
 - pi-better-subagents runs are omitted when their sandboxed per-run child Session is unavailable; shared session trees and large `output.log` files are intentionally not scanned.
 - Dynamic Workflows runs with only estimated tokens and no reported monetary cost are omitted; mixed runs may expose a partial known cost.
 - `@henryqw/pi-subagent` isolated-mode work is omitted because it has neither a child Session nor persisted parent usage; direct mode is covered.

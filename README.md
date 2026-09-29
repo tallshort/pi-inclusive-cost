@@ -53,7 +53,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Standard full-session subagent modes | Standard Pi sessions | Layout-based compatibility for nested `session.jsonl` or parent-linked sibling sessions; not a blanket claim about any package named `pi-subagents` |
 | `@pi-archimedes/subagent` | `@pi-archimedes/subagent` | Synchronous results expose stable child Session IDs and usage without persisting child Session files |
 | `pi-subagents-lite` | `pi-subagents-lite` | Foreground calls persist cumulative cost; background completions are linked to attributed launch IDs |
-| `@ian-pascoe/pi-minimal-subagents` | `@ian-pascoe/pi-minimal-subagents` | Registry v1/v2 settled-turn usage is authoritative; child Session totals are not used as fallback |
+| `@ian-pascoe/pi-minimal-subagents` | `@ian-pascoe/pi-minimal-subagents` | Registry V2 settled-turn usage is authoritative; legacy V1 records and child Session totals are not collected |
 | `pi-better-subagents` | `pi-better-subagents` | Strictly attributed retained sandboxed child Sessions only; shared session trees and large `output.log` files are not scanned |
 | `@henryqw/pi-subagent` | Explicit Herdr child Sessions | Direct mode only: attributed launch and completion records identify standard child Sessions; isolated mode has no collectible persisted usage |
 | `pi-herdr-agents` | Explicit Herdr child Sessions | Attributed launch records identify standard child Sessions; fork-inherited parent entries are excluded |
