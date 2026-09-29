@@ -47,7 +47,7 @@ export function collectPiSessions(rootFile: string): PiSessionCollection {
 		const header = headers.get(file) ?? sessionHeaderFromEntries(entries);
 		const inheritedIds = header?.parentSession ? entryIdsByFile.get(header.parentSession) : undefined;
 		sessionContributions.set(`pi-session:${file}`, sumAssistantCost(entries, inheritedIds));
-		collectAttributedRecords(entries, file, header?.cwd, toolResults, customMessages, inheritedIds);
+		collectAttributedRecords(entries, file, header?.id, header?.cwd, toolResults, customMessages, inheritedIds);
 	}
 
 	const rootKey = `pi-session:${rootFile}`;
@@ -94,6 +94,7 @@ function discoverSessionTree(rootFile: string): Set<string> {
 function collectAttributedRecords(
 	entries: unknown[],
 	sessionFile: string,
+	sessionId: string | undefined,
 	cwd: string | undefined,
 	toolResults: AttributedToolResult[],
 	customMessages: AttributedCustomMessage[],
@@ -105,6 +106,7 @@ function collectAttributedRecords(
 		if (record?.type === "custom_message" && typeof record.customType === "string") {
 			customMessages.push({
 				sessionFile,
+				sessionId,
 				customType: record.customType,
 				content: record.content,
 				details: record.details,
@@ -117,6 +119,7 @@ function collectAttributedRecords(
 		if (typeof message.toolName !== "string") continue;
 		toolResults.push({
 			sessionFile,
+			sessionId,
 			toolName: message.toolName,
 			toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
 			content: message.content,

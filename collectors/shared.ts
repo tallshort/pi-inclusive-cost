@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 export interface AttributedToolResult {
 	sessionFile: string;
+	sessionId?: string;
 	toolName: string;
 	toolCallId?: string;
 	content: unknown;
@@ -12,6 +13,7 @@ export interface AttributedToolResult {
 
 export interface AttributedCustomMessage {
 	sessionFile: string;
+	sessionId?: string;
 	customType: string;
 	content: unknown;
 	details: unknown;

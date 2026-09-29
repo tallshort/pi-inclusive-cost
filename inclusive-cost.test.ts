@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { collectBetter } from "./collectors/better.js";
+import { collectDynamicWorkflows } from "./collectors/dynamic-workflows.js";
 import inclusiveCost from "./inclusive-cost.js";
 
 test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t) => {
@@ -1075,6 +1077,130 @@ test("Fabric session export is only a fallback for a run ID returned to this cha
 	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
 });
 
+test("dynamic workflow run heads provide cumulative cost with strict parent attribution", (t) => {
+	const cwd = temporaryDirectory(t);
+	const workflowHome = path.join(temporaryDirectory(t), "workflows");
+	const rootFile = path.join(cwd, "root.jsonl");
+	writeSession(rootFile, { id: "root-id", cost: 1, cwd });
+	const otherRootFile = path.join(cwd, "other-root.jsonl");
+	writeSession(otherRootFile, { id: "other-root", cost: 1, cwd });
+	writeDynamicWorkflowHead(workflowHome, cwd, "audit-run-1", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 0.6, estimated: false },
+	});
+	writeDynamicWorkflowHead(workflowHome, cwd, "zero-run-2", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 0, estimated: false },
+	});
+	writeDynamicWorkflowHead(workflowHome, cwd, "unknown-run-3", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 0, estimated: true },
+	});
+	writeDynamicWorkflowHead(workflowHome, cwd, "partial-run-4", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 0.1, estimated: true },
+	});
+	writeDynamicWorkflowHead(workflowHome, cwd, "foreign-run-4", {
+		parentSessionId: "other-session",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	const symlinkHead = writeDynamicWorkflowHead(workflowHome, cwd, "symlink-run-6", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	const symlinkTarget = `${symlinkHead}.target`;
+	fs.renameSync(symlinkHead, symlinkTarget);
+	fs.symlinkSync(symlinkTarget, symlinkHead);
+	const brokenHead = writeDynamicWorkflowHead(workflowHome, cwd, "broken-run-9", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	fs.rmSync(brokenHead);
+	fs.symlinkSync(`${brokenHead}.missing`, brokenHead);
+	const malformedHead = writeDynamicWorkflowHead(workflowHome, cwd, "malformed-run-7", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	fs.writeFileSync(malformedHead, "{malformed");
+	const invalidStructureHead = writeDynamicWorkflowHead(workflowHome, cwd, "invalid-structure-10", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	const invalidStructure = JSON.parse(fs.readFileSync(invalidStructureHead, "utf8"));
+	invalidStructure.bytes = 0;
+	fs.writeFileSync(invalidStructureHead, JSON.stringify(invalidStructure));
+	const oversizedHead = writeDynamicWorkflowHead(workflowHome, cwd, "oversized-run-11", {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 50, estimated: false },
+	});
+	fs.appendFileSync(oversizedHead, " ".repeat(1024 * 1024));
+	const result = (runId: string, details: Record<string, unknown> = {}) => ({
+		sessionFile: rootFile,
+		sessionId: "root-id",
+		cwd,
+		toolName: "workflow",
+		toolCallId: `call-${runId}`,
+		content: [{ type: "text", text: `Run ID: ${runId}` }],
+		details: { runId, background: true, ...details },
+	});
+
+	const summary = collectDynamicWorkflows([
+		result("audit-run-1", { tokenUsage: { cost: 99 } }),
+		result("audit-run-1"),
+		result("zero-run-2"),
+		result("unknown-run-3"),
+		result("partial-run-4"),
+		result("foreign-run-4", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		result("inline-run-5", { background: false, tokenUsage: { cost: 0.2, estimated: false } }),
+		result("symlink-run-6"),
+		result("broken-run-9", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		result("malformed-run-7", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		result("invalid-structure-10", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		result("oversized-run-11"),
+		result("../escape", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		result("conflict-run-8", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+		{
+			...result("conflict-run-8", { background: false, tokenUsage: { cost: 50, estimated: false } }),
+			sessionFile: otherRootFile,
+			sessionId: "other-root",
+		},
+	], workflowHome);
+
+	assert.ok(Math.abs(summary.cost - 0.9) < 1e-12);
+	assert.equal(summary.count, 4);
+});
+
+test("/cost includes attributed dynamic workflow cumulative run cost", async (t) => {
+	const cwd = temporaryDirectory(t);
+	const rootFile = path.join(cwd, "root.jsonl");
+	const runId = "review-run-legacy";
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd,
+		extra: [toolResult("workflow", "Workflow started", { runId, background: true })],
+	});
+	writeDynamicWorkflowHead(path.join(cwd, ".pi", "workflows"), cwd, runId, {
+		parentSessionId: "root-id",
+		parentSessionFile: rootFile,
+		tokenUsage: { input: 10, output: 5, total: 15, cost: 0.4, estimated: false },
+	}, true);
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.40/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
 test("Taskflow trace counts attempts and recomputes once while repeated run results are deduplicated", async (t) => {
 	const cwd = temporaryDirectory(t);
 	const rootFile = path.join(cwd, "root.jsonl");
@@ -1601,4 +1727,32 @@ function writeTaskflowRun(cwd: string, runId: string, flowName: string, options:
 	fs.writeFileSync(traceFile, options.trace.length > 0
 		? `${options.trace.map((entry) => JSON.stringify(entry)).join("\n")}\n`
 		: "");
+}
+
+function writeDynamicWorkflowHead(
+	workflowHome: string,
+	cwd: string,
+	runId: string,
+	index: Record<string, unknown>,
+	legacy = false,
+): string {
+	const slug = path.basename(path.resolve(cwd)).toLowerCase()
+		.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "project";
+	const key = `${slug}-${createHash("sha256").update(path.resolve(cwd)).digest("hex").slice(0, 12)}`;
+	const runsRoot = legacy
+		? path.join(workflowHome, "runs")
+		: path.join(workflowHome, "projects", key, "runs");
+	fs.mkdirSync(runsRoot, { recursive: true });
+	const file = path.join(runsRoot, `${runId}.json`);
+	fs.writeFileSync(file, JSON.stringify({
+		format: "pi-workflow-run-v2",
+		generation: "test",
+		bytes: 1,
+		sequence: 1,
+		hash: "test",
+		keys: [],
+		index: { runId, ...index },
+		summary: { total: 1, usage: index.tokenUsage },
+	}));
+	return file;
 }

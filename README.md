@@ -42,6 +42,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `@bacnh85/pi-subagent` | Attributed foreground tool-result usage and background completion messages |
 | `pi-subagents-j0k3r` | Attributed `subagent_*` tool-result task usage, with an explicitly referenced standard session as fallback |
 | `@ferris1225/pi-subagents` | Run IDs from attributed launch results and cumulative usage from persisted `subagent_status` results; explicit standard sessions are fallback only |
+| Pi Dynamic Workflows | Attributed `workflow` run IDs and cumulative cost from the run's small persisted v2 head |
 | Pi Fabric | Run IDs and cumulative usage from `fabric_exec` rendered output or structured agent audit details, with attributable `.fabric` exports as fallback |
 | Pi Taskflow | Run IDs returned by `taskflow`, then usage-bearing trace events or an older snapshot fallback |
 
@@ -63,6 +64,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | In-memory foreground results are keyed by parent tool call; background completions are keyed by task ID |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results provide stable task identities and usage; explicit child sessions are fallback only |
 | `@ferris1225/pi-subagents` | `@ferris1225/pi-subagents` | Launch results establish stable run IDs; persisted status results provide usage; detached completion text is not parsed |
+| Pi Dynamic Workflows | Pi Dynamic Workflows | Exact parent Session identity and run ID locate a small cumulative run head; large event logs are not read |
 | Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
 | Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
 
@@ -72,7 +74,7 @@ The statusline shows `$X.XX (incl) •` whenever attributable delegated work exi
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for persistence layouts, source precedence, resume/cache/recompute behavior, contribution keys, and deduplication invariants.
 
-It intentionally does not attempt token-based cost *estimation* — it only sums `usage.cost.total` as already recorded in the session file. That field is itself a **client-side estimate** computed by the agent's model registry (input/output/cache token counts × that model's listed per-token price), not a number returned by your provider's billing API — so treat it as an estimate, not an authoritative bill. If your provider doesn't populate `usage.cost.total` at all, the inclusive total will read as `$0.00`.
+It intentionally does not perform its own token-based cost estimation—it sums monetary cost fields already persisted by supported runtimes, such as Session `usage.cost.total` or Dynamic Workflows `tokenUsage.cost`. These values are themselves **client-side estimates** computed from reported token counts and local model pricing, not authoritative provider bills. When a runtime marks token usage as estimated but has no monetary cost, that unknown cost is omitted rather than treated as free.
 
 ## Install
 

@@ -33,6 +33,7 @@ bacnh85-background:<parent-session-path>:<task-id>
 j0k3r:<parent-session-path>:<task-id>:<attempt>
 j0k3r-session:<absolute-session-path>
 ferris:<parent-session-path>:<run-id>
+dynamic-workflow:<run-id>
 fabric:<run-id>
 taskflow:<run-id>:<trace-line>
 taskflow-fallback:<execution-fingerprint>
@@ -53,6 +54,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `@bacnh85/pi-subagent` | Foreground tool-result usage and background completion messages | Parent session path + tool call/result or background task identity |
 | `pi-subagents-j0k3r` | Attributed task usage in parent `subagent_*` tool results | Parent session path + task attempt identity |
 | `@ferris1225/pi-subagents` | Attributed launch identities plus cumulative usage in persisted `subagent_status` results | Parent session path + run ID |
+| Pi Dynamic Workflows | Cumulative `index.tokenUsage.cost` in an exactly attributed persisted v2 run head | `dynamic-workflow:<run-id>` |
 | Pi Fabric | Attributed run records in `fabric_exec` rendered output or successful `details.audits[].result` entries | `fabric:<run-id>` |
 | Pi Taskflow | Usage-bearing events in an attributed run trace | `taskflow:<run-id>:<trace-line>` |
 
@@ -74,6 +76,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 | `@bacnh85/pi-subagent` | `@bacnh85/pi-subagent` | Parent tool calls identify foreground results; completion messages identify background tasks |
 | `pi-subagents-j0k3r` | `pi-subagents-j0k3r` | Parent tool results identify task attempts and their usage; explicit standard sessions are fallback only |
 | `@ferris1225/pi-subagents` | `@ferris1225/pi-subagents` | Launch results identify runs; persisted status results provide usage; explicit standard sessions are fallback only |
+| Pi Dynamic Workflows | Pi Dynamic Workflows | Parent `workflow` results identify a run whose v2 head retains cumulative usage and immutable parent lineage |
 | Pi Fabric | Pi Fabric | Parent tool results identify runs through rendered output or structured audit details; session exports are fallback only |
 | Pi Taskflow | Pi Taskflow | Parent tool results identify project-local traces and snapshots |
 
@@ -89,6 +92,7 @@ A key is inserted once into the aggregate map. Collector-specific rules decide w
 - `collectors/better.ts` owns pi-better-subagents launch attribution, child Session lookup, nested discovery, and streaming cost collection.
 - `collectors/herdr-sessions.ts` owns explicit Herdr child Session attribution for Henry direct mode and pi-herdr-agents, inherited-entry exclusion, and cross-collector deduplication.
 - `collectors/bacnh85.ts` owns bacnh85 foreground/background attribution and deduplication.
+- `collectors/dynamic-workflows.ts` owns Dynamic Workflows run attribution, v2 head validation, cumulative cost, and foreground inline fallback.
 - `collectors/fabric.ts` owns Fabric result parsing, run deduplication, and export fallback.
 - `collectors/ferris.ts` owns Ferris launch/status attribution, deduplication, and explicit-session fallback.
 - `collectors/j0k3r.ts` owns j0k3r task-result attribution, attempt deduplication, and explicit-session fallback.
@@ -195,6 +199,18 @@ Fabric can additionally export Pi-compatible usage sessions under:
 
 The export repeats the same usage and is therefore only a fallback when the attributable tool-result record identifies the run but omits usable cost. A standalone `.fabric` file is never included merely because its `cwd` matches: its content does not identify the parent chat. Alternate export roots may be undiscoverable and are an accepted limitation.
 
+### Pi Dynamic Workflows
+
+An attributed `workflow` tool result supplies a stable `details.runId`. New run heads are located without directory scans at:
+
+```text
+~/.pi/workflows/projects/<project-slug>-<cwd-hash>/runs/<run-id>.json
+```
+
+The legacy exact path `<cwd>/.pi/workflows/runs/<run-id>.json` is also accepted. The collector reads only this small `pi-workflow-run-v2` head (bounded to 1 MiB), never the potentially large `.events.jsonl`. Its indexed `runId`, immutable `parentSessionId`, and canonical `parentSessionFile` must match the attributed parent record.
+
+`index.tokenUsage.cost` is the runtime's cumulative run total and is keyed once as `dynamic-workflow:<run-id>`. It already incorporates committed parallel calls, retries, resume history, and newly executed cache misses; journal cache hits add no new usage. Repeated launch/result records therefore do not add snapshots together. A foreground `details.tokenUsage.cost` is used only when the head is absent; an invalid or foreign head fails closed. A genuine unestimated zero remains countable, while `estimated: true` with zero cost is treated as unknown and omitted. Mixed estimated/exact runs may expose only the known partial monetary cost.
+
 ### Pi Taskflow
 
 A persisted `taskflow` tool result exposes `details.state.runId`; human-readable results also contain `Run id: ...`. Only run IDs found in tool results belonging to the root or an attributable descendant session are collected.
@@ -241,5 +257,6 @@ Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The st
 - Parent tool-result usage without a stable child/run identity is ignored to avoid double-counting.
 - minimal-subagents turns without persisted registry usage are omitted; whole child Session totals are not a safe per-turn fallback.
 - pi-better-subagents runs are omitted when their sandboxed per-run child Session is unavailable; shared session trees and large `output.log` files are intentionally not scanned.
+- Dynamic Workflows runs with only estimated tokens and no reported monetary cost are omitted; mixed runs may expose a partial known cost.
 - `@henryqw/pi-subagent` isolated-mode work is omitted because it has neither a child Session nor persisted parent usage; direct mode is covered.
 - Ferris detached completion text is not parsed; a run needs a persisted structured status/completed result to be collectible.

@@ -65,3 +65,11 @@ These collectors are needed because the audited package versions expose attribut
   - Require absolute non-symlink standard Session files, exclude fork-inherited parent entry IDs, and avoid recounting files already found by Standard Pi discovery.
   - Leave Henry isolated mode unsupported because it uses `--no-session` and does not persist usage/cost in the parent result.
   - Add regression coverage for repeated references, unrelated completion messages, fork-history exclusion, and cross-collector deduplication.
+
+- [x] Add a Pi Dynamic Workflows cumulative run collector.
+  - Discover only stable run IDs persisted by attributed `workflow` tool results in the current Session tree.
+  - Derive the exact project namespace from the attributed cwd and read only the bounded v2 run head, with legacy exact-path fallback; never read the large events log or scan shared run directories.
+  - Require matching indexed run ID, immutable parent Session ID, and canonical parent Session file before accepting cumulative `index.tokenUsage.cost`.
+  - Key by run ID so retries/resume/cache-miss additions use the latest cumulative total once; use foreground inline usage only when the head is absent.
+  - Preserve genuine zero cost, omit estimated-zero unknown cost, and document partial mixed-usage limitations.
+  - Add regression coverage for modern and legacy heads, duplicate results, artifact precedence, foreign lineage, zero/unknown cost, and inline fallback.
