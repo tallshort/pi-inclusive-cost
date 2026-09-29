@@ -5,7 +5,7 @@
 [![CI](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml/badge.svg)](https://github.com/tallshort/pi-inclusive-cost/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/tallshort/pi-inclusive-cost?style=flat)](https://github.com/tallshort/pi-inclusive-cost/stargazers)
 
-A [Pi coding agent](https://pi.dev) extension that shows session cost **including subagent sessions**, not just the current thread.
+A [Pi coding agent](https://pi.dev) extension that shows **inclusive cost** for the current session, including supported subagents and delegated workflows, not just the main thread.
 
 > [!NOTE]
 > This repository is the `tallshort`-maintained fork of [serhii-chernenko/pi-inclusive-cost](https://github.com/serhii-chernenko/pi-inclusive-cost), which remains the upstream project.
@@ -19,7 +19,12 @@ Compared with upstream, this fork adds:
 - Lifecycle-aware accounting for persisted foreground, background, and nested work, plus backend-specific resume, cache, and recompute semantics.
 - A modular collector architecture with backend-specific source precedence, conservative fallbacks, and regression coverage.
 
-<img width="1888" height="504" alt="shot-mrwgwdn7" src="https://github.com/user-attachments/assets/2e4f2de3-7447-4beb-993f-2222d8e08f3d" />
+Example statusline with illustrative values:
+
+```text
+↑1.9M ↓176k R62M CH8.9% $34.609 (sub) 66.8%/272k (auto)             (openai-codex) gpt-5.6-sol • medium
+$37.72 (incl)
+```
 
 ## The problem
 
@@ -70,7 +75,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 
 Support for a named subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope. In particular, `@henryqw/pi-subagent` isolated mode uses `--no-session` and does not persist its internally observed usage in the parent result, so only direct mode is collected. The generic first row is based only on the standard persisted layout.
 
-The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` keeps the compact three-line summary: `Direct (this thread)`, `Inclusive (+ subagents & delegated work)`, and `Subagent/delegated contributions folded in`. Refresh happens on session start, at the end of every turn, and when the agent run ends.
+The statusline shows `$X.XX (incl)` whenever attributable delegated work exists. `/cost` keeps the compact three-line summary: `Direct (this thread)`, `Inclusive (+ subagents & delegated work)`, and `Subagent/delegated contributions folded in`. Refresh happens on session start, at the end of every turn, and when the agent run ends.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for persistence layouts, source precedence, resume/cache/recompute behavior, contribution keys, and deduplication invariants.
 

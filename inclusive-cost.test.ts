@@ -1012,7 +1012,7 @@ test("nested session.jsonl files must have a Pi session header", async (t) => {
 	assertCostSummary(notification, 1.00, 0);
 });
 
-test("inclusive status sorts first and renders dim with a trailing separator", (t) => {
+test("inclusive status sorts first and renders dim", (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
 	writeSession(rootFile, { id: "root-id", cost: 1.25, cwd: sessionDir });
@@ -1042,7 +1042,7 @@ test("inclusive status sorts first and renders dim with a trailing separator", (
 	});
 	assert.deepEqual(status, {
 		key: "00-inclusiveCost",
-		text: "<dim>$2.00 (incl) •</dim>",
+		text: "<dim>$2.00 (incl)</dim>",
 	});
 });
 

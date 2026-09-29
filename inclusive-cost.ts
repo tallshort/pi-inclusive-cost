@@ -52,7 +52,7 @@ function updateStatus(ctx: ExtensionContext): void {
 		ctx.ui.setStatus(STATUS_KEY, undefined);
 		return;
 	}
-	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", `$${totals.inclusive.toFixed(2)} (incl) •`));
+	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", `$${totals.inclusive.toFixed(2)} (incl)`));
 }
 
 function computeTotals(ctx: ExtensionContext): CostTotals | null {

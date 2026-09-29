@@ -1,7 +1,7 @@
 {
   "name": "@tallshort/pi-inclusive-cost",
   "version": "0.2.0",
-  "description": "Pi extension that shows session cost including subagent sessions, not just the main thread",
+  "description": "Pi extension that shows inclusive cost for the current session, including supported subagents and delegated workflows, not just the main thread",
   "type": "module",
   "license": "MIT",
   "author": "Serhii Chernenko",
