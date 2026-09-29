@@ -38,6 +38,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `pi-subagents-lite` | Foreground `Agent` tool-result cost and attributed background completion messages |
 | `@ian-pascoe/pi-minimal-subagents` | Root Session registry `turn-settled` usage, keyed by stable agent and turn identity |
 | `pi-better-subagents` | Attributed launch run IDs and their retained sandboxed per-run standard child Session usage |
+| Explicit Herdr child Sessions | Attributed `pi-herdr-agents` launch paths and `@henryqw/pi-subagent` direct-session results |
 | `@bacnh85/pi-subagent` | Attributed foreground tool-result usage and background completion messages |
 | `pi-subagents-j0k3r` | Attributed `subagent_*` tool-result task usage, with an explicitly referenced standard session as fallback |
 | `@ferris1225/pi-subagents` | Run IDs from attributed launch results and cumulative usage from persisted `subagent_status` results; explicit standard sessions are fallback only |
@@ -53,6 +54,8 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | `pi-subagents-lite` | `pi-subagents-lite` | Foreground calls persist cumulative cost; background completions are linked to attributed launch IDs |
 | `@ian-pascoe/pi-minimal-subagents` | `@ian-pascoe/pi-minimal-subagents` | Registry v1/v2 settled-turn usage is authoritative; child Session totals are not used as fallback |
 | `pi-better-subagents` | `pi-better-subagents` | Strictly attributed retained sandboxed child Sessions only; shared session trees and large `output.log` files are not scanned |
+| `@henryqw/pi-subagent` | Explicit Herdr child Sessions | Direct mode only: attributed launch and completion records identify standard child Sessions; isolated mode has no collectible persisted usage |
+| `pi-herdr-agents` | Explicit Herdr child Sessions | Attributed launch records identify standard child Sessions; fork-inherited parent entries are excluded |
 | `@gotgenes/pi-subagents` | Standard Pi sessions | Independently maintained hard fork of `@tintinweb/pi-subagents`; supported through its `tasks/*.jsonl` layout |
 | `@nklisch/pi-subagents` | Standard Pi sessions | Maintained MIT fork of `@gotgenes/pi-subagents`; retains the same `tasks/*.jsonl` persistence while adding ordered lifecycle interception |
 | `@xzzpig/pi-subagents` | Standard Pi sessions | Fork of `nicobailon/pi-subagents`; persisted native children use the same nested-session mechanism |
@@ -63,7 +66,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 | Pi Fabric | Pi Fabric | Requires the parent chat to retain the Fabric run ID in rendered output or structured audit details |
 | Pi Taskflow | Pi Taskflow | Requires the parent chat to retain the Taskflow run ID |
 
-Support for a named subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope. The generic first row is based only on the standard persisted layout.
+Support for a named subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope. In particular, `@henryqw/pi-subagent` isolated mode uses `--no-session` and does not persist its internally observed usage in the parent result, so only direct mode is collected. The generic first row is based only on the standard persisted layout.
 
 The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` keeps the original compact summary: direct cost, inclusive cost with every supported subagent backend folded in, and the number of folded delegated sessions/runs. Refresh happens on session start, at the end of every turn, and when the agent run ends.
 

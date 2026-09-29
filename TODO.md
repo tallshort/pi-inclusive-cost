@@ -58,3 +58,10 @@ These collectors are needed because the audited package versions expose attribut
   - Stream assistant `usage.cost.total`, key contributions by run ID, preserve valid zero-cost runs, and recursively follow attributed nested launch receipts.
   - Ignore foreign metadata, ambiguous or missing child Sessions, shared non-sandbox session trees, and log-only runs; never scan or parse large `output.log` files.
   - Add regression coverage for single/batch launch results, duplicates, nested launches, foreign runs, zero cost, and cleaned/missing Sessions.
+
+- [x] Add explicit Herdr child Session collectors.
+  - Collect `@henryqw/pi-subagent` direct-mode Sessions from attributed `delegate_task` launches and correlated `subagent-direct-result` tab references.
+  - Collect `pi-herdr-agents` Sessions only from its exact persisted started-launch shape; never scan shared Herdr directories.
+  - Require absolute non-symlink standard Session files, exclude fork-inherited parent entry IDs, and avoid recounting files already found by Standard Pi discovery.
+  - Leave Henry isolated mode unsupported because it uses `--no-session` and does not persist usage/cost in the parent result.
+  - Add regression coverage for repeated references, unrelated completion messages, fork-history exclusion, and cross-collector deduplication.

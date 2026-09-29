@@ -173,6 +173,168 @@ test("bacnh85 deduplicates background task IDs within each parent session", asyn
 	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
 });
 
+test("Henry direct sessions are collected only from attributed delegate results", async (t) => {
+	const root = temporaryDirectory(t);
+	const rootFile = path.join(root, "root.jsonl");
+	const firstChild = path.join(root, "henry", "first.jsonl");
+	const secondChild = path.join(root, "henry", "second.jsonl");
+	const missingUsageChild = path.join(root, "henry", "missing-usage.jsonl");
+	const symlinkChild = path.join(root, "henry", "symlink.jsonl");
+	const invalidChild = path.join(root, "henry", "invalid.jsonl");
+	const unrelatedChild = path.join(root, "henry", "unrelated.jsonl");
+	writeSession(firstChild, { id: "henry-first", cost: 0.2, cwd: root });
+	writeSession(secondChild, { id: "henry-second", cost: 0, cwd: root });
+	writeJsonLines(missingUsageChild, [
+		{ type: "session", version: 3, id: "henry-missing", timestamp: "2026-01-01T00:00:00.000Z", cwd: root },
+		{ type: "message", message: { role: "assistant", usage: {} } },
+	]);
+	fs.symlinkSync(unrelatedChild, symlinkChild);
+	writeJsonLines(invalidChild, [{ type: "message", message: { role: "assistant", usage: { cost: { total: 50 } } } }]);
+	writeSession(unrelatedChild, { id: "henry-unrelated", cost: 50, cwd: root });
+	const launch = {
+		taskId: "direct-task-1",
+		mode: "parallel",
+		tabId: "tab-1",
+		sessionFile: firstChild,
+		entries: [
+			{ id: "entry-1", index: 0, name: "scout", role: "scout" },
+			{ id: "entry-2", index: 1, name: "reviewer", role: "reviewer" },
+			{ id: "entry-3", index: 2, name: "tester", role: "tester" },
+			{ id: "entry-4", index: 3, name: "symlink", role: "scout" },
+			{ id: "entry-5", index: 4, name: "invalid", role: "scout" },
+		],
+	};
+	const completion = {
+		taskId: "direct-task-1",
+		outcome: "completed",
+		tabs: [
+			{ taskId: "direct-task-1", entryId: "entry-1", name: "scout", tabId: "tab-1", paneId: "pane-1", sessionFile: firstChild },
+			{ taskId: "direct-task-1", entryId: "entry-2", name: "reviewer", tabId: "tab-2", paneId: "pane-2", sessionFile: secondChild },
+			{ taskId: "direct-task-1", entryId: "entry-3", name: "tester", tabId: "tab-3", paneId: "pane-3", sessionFile: missingUsageChild },
+			{ taskId: "direct-task-1", entryId: "entry-4", name: "symlink", tabId: "tab-4", paneId: "pane-4", sessionFile: symlinkChild },
+			{ taskId: "direct-task-1", entryId: "entry-5", name: "invalid", tabId: "tab-5", paneId: "pane-5", sessionFile: invalidChild },
+		],
+	};
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: root,
+		extra: [
+			toolResult("delegate_task", "Direct delegation started", launch, undefined, "henry-call"),
+			customMessage("subagent-direct-result", completion),
+			customMessage("subagent-direct-result", completion),
+			customMessage("subagent-direct-result", {
+				taskId: "direct-task-1",
+				outcome: "completed",
+				tabs: [{ taskId: "direct-task-1", entryId: "forged", name: "fake", tabId: "fake", paneId: "fake", sessionFile: unrelatedChild }],
+			}),
+			customMessage("subagent-direct-result", {
+				taskId: "direct-task-1",
+				outcome: "completed",
+				tabs: [{ taskId: "direct-task-1", entryId: "entry-1", name: "scout", tabId: "wrong-tab", paneId: "fake", sessionFile: unrelatedChild }],
+			}),
+			customMessage("subagent-direct-result", {
+				taskId: "unattributed-task",
+				outcome: "completed",
+				tabs: [{ taskId: "unattributed-task", entryId: "fake", name: "fake", tabId: "fake", paneId: "fake", sessionFile: unrelatedChild }],
+			}),
+		],
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.20/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+});
+
+test("pi-herdr-agents excludes forked parent history from referenced child Sessions", async (t) => {
+	const root = temporaryDirectory(t);
+	const rootFile = path.join(root, "root.jsonl");
+	const childFile = path.join(root, "herdr-external", "child.jsonl");
+	const unrelatedChild = path.join(root, "herdr-external", "unrelated.jsonl");
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: root,
+		assistantId: "root-assistant",
+		extra: [
+			toolResult("subagent", "Sub-agent launched", {
+				id: "herdr-1",
+				name: "reviewer",
+				task: "Review",
+				launchScriptFile: path.join(root, "herdr-launch.sh"),
+				sessionFile: childFile,
+				status: "started",
+			}, undefined, "herdr-call"),
+			toolResult("subagent", "Repeated launch receipt", {
+				id: "herdr-1",
+				name: "reviewer",
+				task: "Review",
+				launchScriptFile: path.join(root, "herdr-launch.sh"),
+				sessionFile: childFile,
+				status: "started",
+			}, undefined, "herdr-call"),
+			toolResult("subagent", "Foreign parent launch", {
+				id: "herdr-foreign",
+				name: "foreign",
+				task: "Ignore",
+				launchScriptFile: path.join(root, "foreign-launch.sh"),
+				sessionFile: unrelatedChild,
+				status: "started",
+			}, undefined, "herdr-foreign-call"),
+			customMessage("subagent_result", { name: "fake", sessionFile: unrelatedChild, exitCode: 0, elapsed: 1 }),
+		],
+	});
+	writeJsonLines(childFile, [
+		{ type: "session", version: 3, id: "herdr-child", timestamp: "2026-01-01T00:00:00.000Z", cwd: root, parentSession: rootFile },
+		assistantEntry("root-assistant", 1),
+		assistantEntry("herdr-assistant", 0.4),
+	]);
+	writeSession(unrelatedChild, {
+		id: "unrelated",
+		cost: 50,
+		cwd: root,
+		parentSession: path.join(root, "another-parent.jsonl"),
+	});
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.40/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+});
+
+test("referenced Herdr Sessions already found by standard discovery are not double-counted", async (t) => {
+	const root = temporaryDirectory(t);
+	const rootFile = path.join(root, "root.jsonl");
+	const childFile = path.join(root, "herdr-child.jsonl");
+	const clonedCompletion = {
+		id: "cloned-completion",
+		...(customMessage("pi-subagent-complete", { task_id: "bg-cloned", usage: { cost: 0.2 }, background: true }) as Record<string, unknown>),
+	};
+	writeSession(rootFile, {
+		id: "root-id",
+		cost: 1,
+		cwd: root,
+		assistantId: "root-assistant",
+		extra: [toolResult("subagent", "Sub-agent launched", {
+			id: "herdr-2",
+			name: "scout",
+			task: "Research",
+			launchScriptFile: path.join(root, "herdr-launch-2.sh"),
+			sessionFile: childFile,
+			status: "started",
+		}, undefined, "herdr-call-2"), clonedCompletion],
+	});
+	writeJsonLines(childFile, [
+		{ type: "session", version: 3, id: "herdr-child", timestamp: "2026-01-01T00:00:00.000Z", cwd: root, parentSession: rootFile },
+		assistantEntry("root-assistant", 1),
+		assistantEntry("herdr-assistant", 0.4),
+		clonedCompletion,
+	]);
+
+	const notification = await invokeCost(rootFile);
+	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
+	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+});
+
 test("Ferris results use run identity, greatest cost, and parent-session scope", async (t) => {
 	const sessionDir = temporaryDirectory(t);
 	const rootFile = path.join(sessionDir, "root.jsonl");
@@ -1007,6 +1169,7 @@ function writeSession(file: string, options: {
 	cwd: string;
 	cost: number;
 	parentSession?: string;
+	assistantId?: string;
 	extra?: unknown[];
 }): void {
 	fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -1019,11 +1182,21 @@ function writeSession(file: string, options: {
 		...(options.parentSession ? { parentSession: options.parentSession } : {}),
 	};
 	const assistant = {
+		...(options.assistantId ? { id: options.assistantId } : {}),
 		type: "message",
 		message: { role: "assistant", usage: { cost: { total: options.cost } } },
 	};
 	const entries = [header, assistant, ...(options.extra ?? [])];
 	fs.writeFileSync(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+}
+
+function writeJsonLines(file: string, entries: unknown[]): void {
+	fs.mkdirSync(path.dirname(file), { recursive: true });
+	fs.writeFileSync(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+}
+
+function assistantEntry(id: string, cost: number): unknown {
+	return { id, type: "message", message: { role: "assistant", usage: { cost: { total: cost } } } };
 }
 
 function j0k3rTask(

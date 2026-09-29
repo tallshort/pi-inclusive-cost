@@ -50,18 +50,35 @@ export function readJsonFile(filePath: string): unknown {
 	}
 }
 
-export function sumAssistantCost(entries: unknown[]): number {
-	let total = 0;
+export function sumAssistantCost(entries: unknown[], excludedEntryIds?: ReadonlySet<string>): number {
+	return assistantCostSummary(entries, excludedEntryIds).cost;
+}
+
+export function assistantCostSummary(
+	entries: unknown[],
+	excludedEntryIds?: ReadonlySet<string>,
+): { cost: number; pricedMessages: number } {
+	let cost = 0;
+	let pricedMessages = 0;
 	for (const entry of entries) {
 		const record = asRecord(entry);
+		if (typeof record?.id === "string" && excludedEntryIds?.has(record.id)) continue;
 		const message = asRecord(record?.message);
 		if (record?.type !== "message" || message?.role !== "assistant") continue;
-		const usage = asRecord(message.usage);
-		const cost = asRecord(usage?.cost);
-		const value = finiteNonNegative(cost?.total);
-		if (value !== undefined) total += value;
+		const value = finiteNonNegative(asRecord(asRecord(message.usage)?.cost)?.total);
+		if (value === undefined) continue;
+		cost += value;
+		pricedMessages += 1;
 	}
-	return total;
+	return { cost, pricedMessages };
+}
+export function sessionEntryIds(entries: unknown[]): Set<string> {
+	const ids = new Set<string>();
+	for (const entry of entries) {
+		const id = asRecord(entry)?.id;
+		if (typeof id === "string") ids.add(id);
+	}
+	return ids;
 }
 
 export function sumStandardPiSessionFile(filePath: string, expectedSessionId?: string): number | undefined {

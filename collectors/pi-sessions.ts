@@ -4,6 +4,7 @@ import path from "node:path";
 import {
 	asRecord,
 	readJsonLines,
+	sessionEntryIds,
 	sumAssistantCost,
 	type AttributedCustomMessage,
 	type AttributedToolResult,
@@ -21,19 +22,32 @@ export interface PiSessionCollection {
 	delegatedCount: number;
 	toolResults: AttributedToolResult[];
 	customMessages: AttributedCustomMessage[];
+	sessionFiles: ReadonlySet<string>;
 }
 
 export function collectPiSessions(rootFile: string): PiSessionCollection {
 	const sessionFiles = discoverSessionTree(rootFile);
 	const sessionContributions = new Map<string, number>();
+	const headers = new Map<string, SessionHeader>();
+	const parentFiles = new Set<string>();
+	const entryIdsByFile = new Map<string, Set<string>>();
 	const toolResults: AttributedToolResult[] = [];
 	const customMessages: AttributedCustomMessage[] = [];
 
 	for (const file of sessionFiles) {
+		const header = sessionHeaderFromValue(readFirstJsonLine(file));
+		if (!header) continue;
+		headers.set(file, header);
+		if (header.parentSession && sessionFiles.has(header.parentSession)) parentFiles.add(header.parentSession);
+	}
+	for (const file of parentFiles) entryIdsByFile.set(file, sessionEntryIds(readJsonLines(file)));
+
+	for (const file of sessionFiles) {
 		const entries = readJsonLines(file);
-		sessionContributions.set(`pi-session:${file}`, sumAssistantCost(entries));
-		const header = sessionHeaderFromEntries(entries);
-		collectAttributedRecords(entries, file, header?.cwd, toolResults, customMessages);
+		const header = headers.get(file) ?? sessionHeaderFromEntries(entries);
+		const inheritedIds = header?.parentSession ? entryIdsByFile.get(header.parentSession) : undefined;
+		sessionContributions.set(`pi-session:${file}`, sumAssistantCost(entries, inheritedIds));
+		collectAttributedRecords(entries, file, header?.cwd, toolResults, customMessages, inheritedIds);
 	}
 
 	const rootKey = `pi-session:${rootFile}`;
@@ -48,6 +62,7 @@ export function collectPiSessions(rootFile: string): PiSessionCollection {
 		delegatedCount: Math.max(0, sessionFiles.size - 1),
 		toolResults,
 		customMessages,
+		sessionFiles,
 	};
 }
 
@@ -82,9 +97,11 @@ function collectAttributedRecords(
 	cwd: string | undefined,
 	toolResults: AttributedToolResult[],
 	customMessages: AttributedCustomMessage[],
+	excludedEntryIds?: ReadonlySet<string>,
 ): void {
 	for (const entry of entries) {
 		const record = asRecord(entry);
+		if (typeof record?.id === "string" && excludedEntryIds?.has(record.id)) continue;
 		if (record?.type === "custom_message" && typeof record.customType === "string") {
 			customMessages.push({
 				sessionFile,
@@ -147,7 +164,11 @@ function readFirstJsonLine(filePath: string): unknown {
 }
 
 function sessionHeaderFromEntries(entries: unknown[]): SessionHeader | null {
-	const first = asRecord(entries[0]);
+	return sessionHeaderFromValue(entries[0]);
+}
+
+function sessionHeaderFromValue(value: unknown): SessionHeader | null {
+	const first = asRecord(value);
 	if (first?.type !== "session") return null;
 	return {
 		id: typeof first.id === "string" ? first.id : undefined,

@@ -5,6 +5,7 @@ import { collectBacnh85 } from "./collectors/bacnh85.js";
 import { collectBetter } from "./collectors/better.js";
 import { collectFabric } from "./collectors/fabric.js";
 import { collectFerris } from "./collectors/ferris.js";
+import { collectHerdrSessions } from "./collectors/herdr-sessions.js";
 import { collectJ0k3r } from "./collectors/j0k3r.js";
 import { collectLite } from "./collectors/lite.js";
 import { collectMinimal } from "./collectors/minimal.js";
@@ -69,12 +70,13 @@ function computeTotals(ctx: ExtensionContext): CostTotals | null {
 	const fabric = collectFabric(rootFile, sessions.toolResults);
 	const ferris = collectFerris(sessions.toolResults);
 	const j0k3r = collectJ0k3r(sessions.toolResults);
+	const herdr = collectHerdrSessions(sessions.toolResults, sessions.customMessages, sessions.sessionFiles);
 	const lite = collectLite(sessions.toolResults, sessions.customMessages);
 	const minimal = collectMinimal(rootFile);
 	const taskflow = collectTaskflow(sessions.toolResults);
 	return {
 		direct: sessions.directCost,
-		inclusive: sessions.directCost + sessions.delegatedCost + archimedes.cost + bacnh85.cost + better.cost + fabric.cost + ferris.cost + j0k3r.cost + lite.cost + minimal.cost + taskflow.cost,
-		foldedCount: sessions.delegatedCount + archimedes.count + bacnh85.count + better.count + fabric.count + ferris.count + j0k3r.count + lite.count + minimal.count + taskflow.count,
+		inclusive: sessions.directCost + sessions.delegatedCost + archimedes.cost + bacnh85.cost + better.cost + fabric.cost + ferris.cost + herdr.cost + j0k3r.cost + lite.cost + minimal.cost + taskflow.cost,
+		foldedCount: sessions.delegatedCount + archimedes.count + bacnh85.count + better.count + fabric.count + ferris.count + herdr.count + j0k3r.count + lite.count + minimal.count + taskflow.count,
 	};
 }
