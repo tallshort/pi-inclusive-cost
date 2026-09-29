@@ -19,8 +19,8 @@ test("/cost includes @gotgenes task sessions stored as tasks/*.jsonl", async (t)
 	const notification = await invokeCost(rootFile);
 	assert.equal(notification, [
 		"Direct (this thread): $1.25",
-		"Inclusive (+ subagents): $2.00",
-		"Delegated sessions/runs folded in: 1",
+		"Inclusive (+ subagents & delegated work): $2.00",
+		"Subagent/delegated contributions folded in: 1",
 	].join("\n"));
 });
 
@@ -44,8 +44,7 @@ test("j0k3r tool results use greatest per-attempt cost and keep continuations di
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.75/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.75, 2);
 });
 
 test("j0k3r falls back only to an explicitly referenced standard Pi session", async (t) => {
@@ -79,8 +78,7 @@ test("j0k3r falls back only to an explicitly referenced standard Pi session", as
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.60, 1);
 });
 
 test("j0k3r does not recollect tasks already reported through parent tool usage", async (t) => {
@@ -99,8 +97,7 @@ test("j0k3r does not recollect tasks already reported through parent tool usage"
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 0/);
+	assertCostSummary(notification, 1.00, 0);
 });
 
 test("bacnh85 scopes foreground result identities to their parent sessions", async (t) => {
@@ -139,8 +136,7 @@ test("bacnh85 scopes foreground result identities to their parent sessions", asy
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.05/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 5/);
+	assertCostSummary(notification, 2.05, 5);
 });
 
 test("bacnh85 deduplicates background task IDs within each parent session", async (t) => {
@@ -171,8 +167,7 @@ test("bacnh85 deduplicates background task IDs within each parent session", asyn
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.90/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
+	assertCostSummary(notification, 1.90, 3);
 });
 
 test("Henry direct sessions are collected only from attributed delegate results", async (t) => {
@@ -244,8 +239,7 @@ test("Henry direct sessions are collected only from attributed delegate results"
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.20/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.20, 2);
 });
 
 test("pi-herdr-agents excludes forked parent history from referenced child Sessions", async (t) => {
@@ -299,8 +293,7 @@ test("pi-herdr-agents excludes forked parent history from referenced child Sessi
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.40/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.40, 1);
 });
 
 test("referenced Herdr Sessions already found by standard discovery are not double-counted", async (t) => {
@@ -333,8 +326,7 @@ test("referenced Herdr Sessions already found by standard discovery are not doub
 	]);
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.60, 2);
 });
 
 test("Ferris results use run identity, greatest cost, and parent-session scope", async (t) => {
@@ -399,8 +391,7 @@ test("Ferris results use run identity, greatest cost, and parent-session scope",
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+	assertCostSummary(notification, 1.95, 4);
 });
 
 test("Ferris falls back only to an explicitly referenced standard session", async (t) => {
@@ -437,8 +428,7 @@ test("Ferris falls back only to an explicitly referenced standard session", asyn
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.60, 1);
 });
 
 test("Archimedes collects single and parallel results with stable identities", async (t) => {
@@ -473,8 +463,7 @@ test("Archimedes collects single and parallel results with stable identities", a
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+	assertCostSummary(notification, 1.95, 4);
 });
 
 test("Archimedes fallback identities are parent-session scoped", async (t) => {
@@ -509,8 +498,7 @@ test("Archimedes fallback identities are parent-session scoped", async (t) => {
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 4/);
+	assertCostSummary(notification, 2.00, 4);
 });
 
 test("pi-subagents-lite foreground costs are keyed by parent tool call", async (t) => {
@@ -540,8 +528,7 @@ test("pi-subagents-lite foreground costs are keyed by parent tool call", async (
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.95/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 5/);
+	assertCostSummary(notification, 1.95, 5);
 });
 
 test("pi-subagents-lite background completions require an attributed launch", async (t) => {
@@ -579,8 +566,7 @@ test("pi-subagents-lite background completions require an attributed launch", as
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.90/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
+	assertCostSummary(notification, 1.90, 3);
 });
 
 test("minimal-subagents counts authoritative settled turns once", async (t) => {
@@ -707,8 +693,7 @@ test("minimal-subagents counts authoritative settled turns once", async (t) => {
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.70/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.70, 2);
 });
 
 test("minimal-subagents ignores missing registry usage and child session totals", async (t) => {
@@ -759,8 +744,7 @@ test("minimal-subagents ignores missing registry usage and child session totals"
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.00, 1);
 });
 
 test("pi-better-subagents counts only attributed child Sessions and follows nested launches", (t) => {
@@ -909,8 +893,7 @@ test("/cost integrates attributed pi-better-subagents child Session usage", asyn
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.25/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.25, 1);
 });
 
 test("session discovery follows nested and flat parent links to a fixed point", async (t) => {
@@ -928,8 +911,7 @@ test("session discovery follows nested and flat parent links to a fixed point", 
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.75/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.75, 2);
 });
 
 test("nested session.jsonl files must have a Pi session header", async (t) => {
@@ -944,8 +926,7 @@ test("nested session.jsonl files must have a Pi session header", async (t) => {
 	})}\n`);
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 0/);
+	assertCostSummary(notification, 1.00, 0);
 });
 
 test("inclusive status sorts first and renders dim with a trailing separator", (t) => {
@@ -1013,8 +994,7 @@ test("Fabric run results are attributed by run ID and repeated cumulative result
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 3/);
+	assertCostSummary(notification, 2.00, 3);
 });
 
 test("Fabric agent audit details contribute costs when the rendered output omits run IDs", async (t) => {
@@ -1044,8 +1024,7 @@ test("Fabric agent audit details contribute costs when the rendered output omits
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.16/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 1.16, 2);
 });
 
 test("Fabric session export is only a fallback for a run ID returned to this chat", async (t) => {
@@ -1073,8 +1052,7 @@ test("Fabric session export is only a fallback for a run ID returned to this cha
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.60/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.60, 1);
 });
 
 test("dynamic workflow run heads provide cumulative cost with strict parent attribution", (t) => {
@@ -1197,8 +1175,7 @@ test("/cost includes attributed dynamic workflow cumulative run cost", async (t)
 	}, true);
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.40/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.40, 1);
 });
 
 test("Taskflow trace counts attempts and recomputes once while repeated run results are deduplicated", async (t) => {
@@ -1234,8 +1211,7 @@ test("Taskflow trace counts attempts and recomputes once while repeated run resu
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$2\.00/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 2/);
+	assertCostSummary(notification, 2.00, 2);
 });
 
 test("Taskflow snapshot fallback excludes inherited and cached phases", async (t) => {
@@ -1260,8 +1236,7 @@ test("Taskflow snapshot fallback excludes inherited and cached phases", async (t
 	});
 
 	const notification = await invokeCost(rootFile);
-	assert.match(notification, /Inclusive \(\+ subagents\): \$1\.25/);
-	assert.match(notification, /Delegated sessions\/runs folded in: 1/);
+	assertCostSummary(notification, 1.25, 1);
 });
 
 function temporaryDirectory(t: { after: (callback: () => void) => void }): string {
@@ -1288,6 +1263,17 @@ async function invokeCost(rootFile: string): Promise<string> {
 		},
 	});
 	return notification;
+}
+
+function assertCostSummary(notification: string, inclusive: number, foldedCount: number): void {
+	const lines = notification.split("\n");
+	assert.equal(lines.length, 3);
+	const inclusiveMatch = /\$(\d+\.\d{2})$/.exec(lines[1] ?? "");
+	const foldedMatch = /(\d+)$/.exec(lines[2] ?? "");
+	assert.ok(inclusiveMatch);
+	assert.ok(foldedMatch);
+	assert.equal(Number(inclusiveMatch[1]), inclusive);
+	assert.equal(Number(foldedMatch[1]), foldedCount);
 }
 
 function writeSession(file: string, options: {

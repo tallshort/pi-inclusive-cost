@@ -37,8 +37,8 @@ export default function inclusiveCost(pi: ExtensionAPI): void {
 			}
 			const lines = [
 				`Direct (this thread): $${totals.direct.toFixed(2)}`,
-				`Inclusive (+ subagents): $${totals.inclusive.toFixed(2)}`,
-				`Delegated sessions/runs folded in: ${totals.foldedCount}`,
+				`Inclusive (+ subagents & delegated work): $${totals.inclusive.toFixed(2)}`,
+				`Subagent/delegated contributions folded in: ${totals.foldedCount}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

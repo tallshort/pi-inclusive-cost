@@ -245,7 +245,7 @@ Any future collector must start from references persisted in the current parent 
 
 ## Refresh and presentation
 
-Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The statusline shows the inclusive total only when at least one attributed delegated contribution exists. `/cost` preserves the original three-line presentation—direct cost, inclusive cost, and folded delegated count—while collector-specific accounting remains internal.
+Collection runs on `session_start`, `turn_end`, `agent_end`, and `/cost`. The statusline shows the inclusive total only when at least one attributed delegated contribution exists. `/cost` presents `Direct (this thread)`, `Inclusive (+ subagents & delegated work)`, and `Subagent/delegated contributions folded in`; collector-specific accounting remains internal.
 
 ## Known limitations
 

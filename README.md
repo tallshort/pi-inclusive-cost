@@ -70,7 +70,7 @@ The extension rebuilds a deduplicated total from persisted records attributable 
 
 Support for a named subagent extension means its attributable persisted mode is covered; in-memory or explicitly non-persistent modes remain out of scope. In particular, `@henryqw/pi-subagent` isolated mode uses `--no-session` and does not persist its internally observed usage in the parent result, so only direct mode is collected. The generic first row is based only on the standard persisted layout.
 
-The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` keeps the original compact summary: direct cost, inclusive cost with every supported subagent backend folded in, and the number of folded delegated sessions/runs. Refresh happens on session start, at the end of every turn, and when the agent run ends.
+The statusline shows `$X.XX (incl) •` whenever attributable delegated work exists. `/cost` keeps the compact three-line summary: `Direct (this thread)`, `Inclusive (+ subagents & delegated work)`, and `Subagent/delegated contributions folded in`. Refresh happens on session start, at the end of every turn, and when the agent run ends.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for persistence layouts, source precedence, resume/cache/recompute behavior, contribution keys, and deduplication invariants.
 
@@ -92,7 +92,7 @@ Restart Pi, or run `/reload`.
 
 ## Commands
 
-- `/cost` — direct cost, inclusive cost, and the number of delegated sessions/runs folded into the total.
+- `/cost` — direct cost, inclusive cost from subagents and other delegated work, and the number of subagent/delegated contributions folded into the total.
 
 ## Not currently collected
 
